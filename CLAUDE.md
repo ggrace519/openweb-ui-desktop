@@ -22,10 +22,11 @@ npm install
 npm run dev
 npm run lint
 npm run typecheck
+npm test
 npm run build
 ```
 
-There is no test script yet. `npm run typecheck` runs `tsc` for the main/preload graph (`tsconfig.node.json`) plus `svelte-check`. Main-process modules are included in `typecheck:node` (no `@ts-nocheck`).
+`npm test` runs `node:test` on `test/*.test.ts` (main-process security helpers; no Electron window). `npm run typecheck` runs `tsc` for the main/preload graph (`tsconfig.node.json`) plus `svelte-check`. Main-process modules are included in `typecheck:node` (no `@ts-nocheck`).
 
 ## Layout
 
