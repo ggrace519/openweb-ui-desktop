@@ -462,7 +462,8 @@ export const startLlamaCpp = async (
     return { url, pid }
   }
 
-  await stopLlamaCpp()
+  try {
+    await stopLlamaCpp({ retainLock: true })
 
   status = 'setting-up'
   onStatus?.('Setting up llama.cpp…')
@@ -521,10 +522,13 @@ export const startLlamaCpp = async (
     log.info(`[llamacpp:${spawnedPid}] Exited code=${exitCode} signal=${signal}`)
     const exitMsg = `\r\n[Process exited with code ${exitCode}${signal ? ` signal ${signal}` : ''}]\r\n`
     logBuffer.push(exitMsg)
-    ptyProcess = null
-    pid = null
-    url = null
-    status = 'stopped'
+    if (ptyProcess === spawned) {
+      ptyProcess = null
+      pid = null
+      url = null
+      status = 'stopped'
+      lock.release()
+    }
   })
 
   const serverUrl = `http://${host}:${availablePort}`
@@ -555,32 +559,39 @@ export const startLlamaCpp = async (
   status = 'started'
   log.info(`llama-server started — PID: ${spawnedPid}, URL: ${serverUrl}`)
 
-  return { url: serverUrl, pid: spawnedPid }
+    return { url: serverUrl, pid: spawnedPid }
+  } catch (error) {
+    lock.release()
+    throw error
+  }
 }
 
-export const stopLlamaCpp = async (): Promise<void> => {
-  if (ptyProcess) {
-    try {
-      ptyProcess.kill()
-    } catch (e) {
-      log.warn('Failed to kill llama-server PTY:', e)
-    }
-    await new Promise((r) => setTimeout(r, 2000))
-    if (pid) {
-      try {
-        process.kill(pid, 0)
-        process.kill(pid, 'SIGKILL')
-      } catch {
-        // already dead
-      }
-    }
-  }
+export const stopLlamaCpp = async (opts?: { retainLock?: boolean }): Promise<void> => {
+  const proc = ptyProcess
+  const procPid = pid
+  // Detach before kill so onExit does not release a lock start() is retaining.
   ptyProcess = null
   pid = null
   url = null
   status = null
   logBuffer = []
-  lock.release()
+  if (proc) {
+    try {
+      proc.kill()
+    } catch (e) {
+      log.warn('Failed to kill llama-server PTY:', e)
+    }
+    await new Promise((r) => setTimeout(r, 2000))
+    if (procPid) {
+      try {
+        process.kill(procPid, 0)
+        process.kill(procPid, 'SIGKILL')
+      } catch {
+        // already dead
+      }
+    }
+  }
+  if (!opts?.retainLock) lock.release()
 }
 
 /**

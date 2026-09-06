@@ -46,7 +46,8 @@ export const startOpenTerminal = async (
     return { url, apiKey, pid }
   }
 
-  await stopOpenTerminal()
+  try {
+    await stopOpenTerminal({ retainLock: true })
 
   if (!isPythonInstalled()) {
     log.info('Python not installed — installing automatically for Open Terminal…')
@@ -150,11 +151,14 @@ export const startOpenTerminal = async (
 
   spawned.onExit(({ exitCode, signal }) => {
     log.info(`[OpenTerminal:${spawnedPid}] Exited code=${exitCode} signal=${signal}`)
-    ptyProcess = null
-    pid = null
-    url = null
-    apiKey = null
-    status = 'stopped'
+    if (ptyProcess === spawned) {
+      ptyProcess = null
+      pid = null
+      url = null
+      apiKey = null
+      status = 'stopped'
+      lock.release()
+    }
   })
 
   const serverUrl = `http://${host}:${availablePort}`
@@ -162,35 +166,39 @@ export const startOpenTerminal = async (
   status = 'started'
   log.info(`Open Terminal started — PID: ${spawnedPid}, URL: ${serverUrl}`)
 
-  return { url: serverUrl, apiKey: generatedKey, pid: spawnedPid }
+    return { url: serverUrl, apiKey: generatedKey, pid: spawnedPid }
+  } catch (error) {
+    lock.release()
+    throw error
+  }
 }
 
-export const stopOpenTerminal = async (): Promise<void> => {
-  if (ptyProcess) {
-    try {
-      ptyProcess.kill()
-    } catch (e) {
-      log.warn('Failed to kill Open Terminal PTY:', e)
-    }
-    // Give it a moment to exit
-    await new Promise((r) => setTimeout(r, 1000))
-    // Force kill if still running
-    if (pid) {
-      try {
-        process.kill(pid, 0) // check alive
-        process.kill(pid, 'SIGKILL')
-      } catch {
-        // already dead
-      }
-    }
-  }
+export const stopOpenTerminal = async (opts?: { retainLock?: boolean }): Promise<void> => {
+  const proc = ptyProcess
+  const procPid = pid
   ptyProcess = null
   pid = null
   url = null
   apiKey = null
   status = null
   logBuffer = []
-  lock.release()
+  if (proc) {
+    try {
+      proc.kill()
+    } catch (e) {
+      log.warn('Failed to kill Open Terminal PTY:', e)
+    }
+    await new Promise((r) => setTimeout(r, 1000))
+    if (procPid) {
+      try {
+        process.kill(procPid, 0)
+        process.kill(procPid, 'SIGKILL')
+      } catch {
+        // already dead
+      }
+    }
+  }
+  if (!opts?.retainLock) lock.release()
 }
 
 /**
