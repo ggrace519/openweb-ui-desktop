@@ -42,6 +42,8 @@ Packaged builds flip Electron fuses in `electron-builder.yml` (`runAsNode` off, 
 
 The `release` workflow fails closed if macOS codesign/notarization or Windows Azure Trusted Signing fails. It does not publish unsigned macOS/Windows fallbacks.
 
+Child processes get a sanitized env (no `LD_PRELOAD` / `NODE_OPTIONS` / `PYTHONHOME` / …). llama-server `--host` / `--port` / `--models-dir` always come from the desktop, not from extra args.
+
 ## Hardening series
 
 See `DECISIONS.md`. Land each fix on its own branch/PR against `develop` so they stay cherry-pickable for upstream.

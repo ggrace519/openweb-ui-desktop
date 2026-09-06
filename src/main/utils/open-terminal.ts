@@ -11,7 +11,8 @@ import {
   isPackageInstalled,
   isPythonInstalled,
   installPython,
-  portInUse
+  portInUse,
+  pythonEnv
 } from './index'
 import { ServiceLock, isProcessAlive } from './service-lock'
 
@@ -124,12 +125,10 @@ export const startOpenTerminal = async (
       name: 'xterm-256color',
       cols: 200,
       rows: 50,
-      env: {
-        ...process.env,
+      env: pythonEnv({
         ...(configEnvVars ?? {}),
-        PYTHONUNBUFFERED: '1',
-        ...(process.platform === 'win32' ? { PYTHONIOENCODING: 'utf-8' } : {})
-      }
+        PYTHONUNBUFFERED: '1'
+      })
     })
   } catch (error) {
     throw new Error(
