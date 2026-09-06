@@ -8,7 +8,8 @@ import crypto from 'crypto'
 
 import * as tar from 'tar'
 
-import { app, shell, Notification, net as electronNet } from 'electron'
+import { app, Notification, net as electronNet } from 'electron'
+import { openExternalUrl } from '../safe-open'
 import { execFileSync, exec, spawn, execSync, execFile } from 'child_process'
 
 import log from 'electron-log'
@@ -98,14 +99,8 @@ export const getOpenWebUIDataPath = (): string => {
 }
 
 export const openUrl = (url: string) => {
-  if (!url) {
-    throw new Error('No URL provided to open in browser.')
-  }
   log.info('Opening URL in browser:', url)
-  if (url.startsWith('http://0.0.0.0')) {
-    url = url.replace('http://0.0.0.0', 'http://localhost')
-  }
-  shell.openExternal(url)
+  return openExternalUrl(url)
 }
 
 export const getSystemInfo = () => {
