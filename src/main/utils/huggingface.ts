@@ -13,6 +13,7 @@ import * as path from 'path'
 import log from 'electron-log'
 
 import { getInstallDir, downloadFileWithProgress } from './index'
+import { confinedModelPath, huggingfaceDownloadUrl, huggingfaceRepoApiUrl } from './hf-paths'
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -66,8 +67,6 @@ const getHfCacheDir = (): string => {
 
   return dir
 }
-
-const repoSlug = (repo: string): string => repo.replace(/\//g, '--')
 
 const getManifestPath = (): string => path.join(getHfCacheDir(), 'manifest.json')
 
@@ -150,13 +149,11 @@ export const downloadModel = async (
   token?: string,
   expectedSize?: number
 ): Promise<string> => {
-  const slug = repoSlug(repo)
-  const repoDir = path.join(getHfCacheDir(), slug)
+  const destPath = confinedModelPath(getHfCacheDir(), repo, filename)
+  const repoDir = path.dirname(destPath)
   if (!fs.existsSync(repoDir)) {
     fs.mkdirSync(repoDir, { recursive: true })
   }
-
-  const destPath = path.join(repoDir, filename)
 
   // Already downloaded?
   if (fs.existsSync(destPath)) {
@@ -164,8 +161,7 @@ export const downloadModel = async (
     return destPath
   }
 
-  // Build download URL
-  const downloadUrl = `https://huggingface.co/${repo}/resolve/main/${encodeURIComponent(filename)}`
+  const downloadUrl = huggingfaceDownloadUrl(repo, filename)
 
   log.info(`[huggingface] Downloading ${repo}/${filename}`)
   log.info(`[huggingface] URL: ${downloadUrl}`)
@@ -264,8 +260,7 @@ export const downloadModel = async (
  * Delete a downloaded model.
  */
 export const deleteModel = (repo: string, filename: string): boolean => {
-  const slug = repoSlug(repo)
-  const filepath = path.join(getHfCacheDir(), slug, filename)
+  const filepath = confinedModelPath(getHfCacheDir(), repo, filename)
 
   try {
     if (fs.existsSync(filepath)) {
@@ -282,7 +277,7 @@ export const deleteModel = (repo: string, filename: string): boolean => {
   writeManifest(updated)
 
   // Clean up empty repo dir
-  const repoDir = path.join(getHfCacheDir(), slug)
+  const repoDir = path.dirname(filepath)
   try {
     const remaining = fs.readdirSync(repoDir)
     if (remaining.length === 0) {
@@ -365,7 +360,7 @@ export const getRepoFiles = async (
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`
 
-  const response = await fetch(`https://huggingface.co/api/models/${repo}`, { headers })
+  const response = await fetch(huggingfaceRepoApiUrl(repo), { headers })
   if (!response.ok) {
     throw new Error(`Failed to fetch repo info: ${response.status} ${response.statusText}`)
   }

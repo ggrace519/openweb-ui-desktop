@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Hugging Face model paths are confined to the cache directory.** Repo ids and filenames are allowlisted and resolved under the models dir before download or delete, so a `../` filename can no longer write outside the cache.
 - **External URL and path opens are allowlisted.** `shell.openExternal` now accepts only `http:`, `https:`, and `mailto:`. `open:path` only opens folders under the app's userData or install directory. Untrusted `file:` / custom-protocol URLs from a webview can no longer be handed to the OS.
 - **TLS verification restored.** The app no longer trusts every certificate on every Chromium session. Self-signed Open WebUI servers (#108) are still allowed, but only for origins the user has added as connections (plus localhost). Auto-update, GitHub, and Hugging Face use real PKI again.
 - **Local service credentials no longer leak to remote webviews.** Open Terminal API keys and the llama.cpp endpoint were broadcast to every Open WebUI `<webview>`, including remote connections that can call `127.0.0.1` from the user's machine. Those events now go only to the local connection. Startup logs no longer dump `config.json` or `--api-key`.
@@ -17,7 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Infrastructure
 
 - **PR typecheck on `develop`.** Pull requests and pushes to `develop` now run `npm run typecheck`. Full-repo `eslint` is not a gate yet — it currently reports hundreds of pre-existing findings on `develop`.
-
 ## [0.0.20] - 2026-05-07
 
 ### Fixed
