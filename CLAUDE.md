@@ -11,7 +11,7 @@ Two long-lived branches:
 - `develop` — integration. Default for PRs. Always promotable.
 - `main` — blessed / what is running.
 
-Never commit directly to `main` or `develop`. Branch from `develop` as `<type>/<kebab-summary>` (e.g. `fix/webview-guest-ipc-allowlist`). Feature PRs target `develop`. Promotion `develop` → `main` is a separate PR and is Greg's call.
+Never commit directly to `main` or `develop`. Branch from `develop` as `<type>/<kebab-summary>` (e.g. `fix/webview-guest-ipc-allowlist`). Feature PRs target `develop` (the GitHub default). Promotion `develop` → `main` is a separate PR and is Greg's call.
 
 ## Commands
 

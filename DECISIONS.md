@@ -15,7 +15,7 @@ The upstream Open WebUI Desktop repo uses `main` only. This fork needs an integr
 
 ### Decision
 
-Two long-lived branches: `develop` (integration) and `main` (blessed). Feature/fix/docs PRs target `develop`. Promotion `develop` → `main` is a separate PR, merge commit or fast-forward, never squash. Greg sets `develop` as the GitHub default branch.
+Two long-lived branches: `develop` (integration) and `main` (blessed). Feature/fix/docs PRs target `develop`. Promotion `develop` → `main` is a separate PR, merge commit or fast-forward, never squash. `develop` is the GitHub default branch (set 2026-09-06).
 
 ### Rationale
 
