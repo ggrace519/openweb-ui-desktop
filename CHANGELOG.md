@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **llama.cpp "latest" no longer tracks an empty GitHub release.** `/releases/latest` is currently `v0.4.0` with no binaries; the app now picks the newest GitHub release that actually has hashed `*-bin-*` assets (the `b*` builds).
 - **Shell BrowserWindows run sandboxed.** The main, Spotlight, and voice-input windows now use `sandbox: true` with context isolation and no Node in the renderer. Preloads still talk over `ipcRenderer` / MessagePort. Guest `<webview>` policy is unchanged.
 - **Renderer no longer gets the Electron toolkit bridge.** `window.electron` from `@electron-toolkit/preload` exposed `ipcRenderer` / `process` to the shell. The renderer talks only through `window.electronAPI`. Unused demo `Versions.svelte` removed.
 - **Child-process environment and llama.cpp extra args are sanitized.** `LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`, `NODE_OPTIONS`, `PYTHONHOME`, and similar keys from the user environment or Settings env vars no longer reach Open WebUI / Open Terminal / llama-server. llama.cpp `--host`, `--port`, and `--models-dir` in extra args are ignored so the server stays on `127.0.0.1` with the app's models directory.
