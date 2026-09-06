@@ -10,6 +10,27 @@ const AUTH_HOST_SUFFIXES = ['.cloudflareaccess.com']
 const AUTH_PATH =
   /\/cdn-cgi\/access(?:\/|$)|\/application\/o\/|\/if\/flow\/|\/realms\/|\/oauth2?\/|\/oidc\/|\/saml2?\/|\/login\/oauth|\/authorize\/?$/i
 
+export function loggableUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return `${parsed.origin}${parsed.pathname}`
+  } catch {
+    return '(invalid url)'
+  }
+}
+
+export function isAccessCallbackUrl(url: string): boolean {
+  try {
+    const path = new URL(url).pathname
+    return (
+      path.includes('/cdn-cgi/access/callback') ||
+      path.includes('/cdn-cgi/access/authorized')
+    )
+  } catch {
+    return false
+  }
+}
+
 export function originOf(url: string): string | null {
   try {
     const parsed = new URL(url)
