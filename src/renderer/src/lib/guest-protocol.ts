@@ -79,9 +79,11 @@ export async function handleGuestSend(
       }
     }
     case 'app:data':
-      // Open WebUI stores this in $appData. Never return config.json
-      // (Open Terminal API key, envVars, paths).
-      return {}
+      // Open WebUI +layout.svelte does `if (data) appData.set(data)` but does
+      // not import the appData store (open-webui/desktop#26). A truthy value
+      // (`{}`) throws ReferenceError and the UI never mounts. `null` skips
+      // that branch. Never return config.json (API keys, envVars, paths).
+      return null
     case 'window:isFocused':
       return api.isWindowFocused()
   }
