@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Packaged shell loads over `app://renderer/`, not `file://`.** Main, Spotlight, and voice-input production windows use a confined `protocol.handle`. Dev (`ELECTRON_RENDERER_URL`) is unchanged. Guest webviews stay on `http(s)`.
+
+### Fixed
+
+- **Hugging Face GGUF downloads are SHA-256 verified.** The Hub `?blobs=true` LFS digest is required before download; the file is hashed while streaming and a cached GGUF is re-hashed before use. A missing digest or mismatch fails closed (no unhashed weights handed to llama-server).
+- **Open WebUI guest no longer dies on `appData is not defined`.** `app:data` now returns `null` instead of `{}`. Open WebUI calls `appData.set(data)` without importing the store when that payload is truthy, which left a blank webview after login.
+- **Tray Quit actually exits.** Quit called `stopServerHandler` then `app.quit()`, `sendToRenderer` threw `Object has been destroyed` on a dead window, and `will-quit`'s `preventDefault` + `app.quit()` never finished. Quit now sets the flag and leaves cleanup to `will-quit`, which ends with `app.exit(0)` and an 8s timeout.
+- **Cloudflare Access / SSO login stays in the app.** Guest webviews sent every cross-origin navigation to the system browser so chat links would not leave Open WebUI (#165). That also ejected Access and IdP logins, so the session cookie never landed in the webview. Auth popups now open in a window that shares the guest session; after the Access callback the webview loads the connection URL. Chat links still open externally.
+- **llama.cpp "latest" no longer tracks an empty GitHub release.** `/releases/latest` is currently `v0.4.0` with no binaries; the app now picks the newest GitHub release that actually has hashed `*-bin-*` assets (the `b*` builds).
+- **Shell BrowserWindows run sandboxed.** The main, Spotlight, and voice-input windows now use `sandbox: true` with context isolation and no Node in the renderer. Preloads still talk over `ipcRenderer` / MessagePort. Guest `<webview>` policy is unchanged.
+- **Renderer no longer gets the Electron toolkit bridge.** `window.electron` from `@electron-toolkit/preload` exposed `ipcRenderer` / `process` to the shell. The renderer talks only through `window.electronAPI`. Unused demo `Versions.svelte` removed.
+- **Child-process environment and llama.cpp extra args are sanitized.** `LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`, `NODE_OPTIONS`, `PYTHONHOME`, and similar keys from the user environment or Settings env vars no longer reach Open WebUI / Open Terminal / llama-server. llama.cpp `--host`, `--port`, and `--models-dir` in extra args are ignored so the server stays on `127.0.0.1` with the app's models directory.
+- **Linux Chromium sandbox is no longer globally off.** `--no-sandbox` is applied only for AppImage, snap, Flatpak, an explicit `ELECTRON_DISABLE_SANDBOX=1`, and unpackaged dev runs (where `chrome-sandbox` is not setuid). Native `.deb` / `.rpm` installs keep the renderer sandbox. `disable-dev-shm-usage` is unchanged.
+- **Python and llama.cpp downloads are checksum-verified.** The bundled CPython tarball is pinned to official python-build-standalone SHA-256 sums; llama.cpp GitHub assets must include a `digest: sha256:…` and are hashed while downloading. A corrupt or swapped cache is discarded and re-fetched instead of extracted.
+- **Child processes are stopped on quit.** `before-quit` was `async` without `preventDefault`, so Electron did not wait for llama.cpp / Open Terminal / Open WebUI to die. Quit now uses `will-quit` and waits. `startLlamaCpp` / `startOpenTerminal` also no longer release `ServiceLock` by calling `stop()` first, which had allowed overlapping starts.
+- **Hugging Face model paths are confined to the cache directory.** Repo ids and filenames are allowlisted and resolved under the models dir before download or delete, so a `../` filename can no longer write outside the cache.
+- **External URL and path opens are allowlisted.** `shell.openExternal` now accepts only `http:`, `https:`, and `mailto:`. `open:path` only opens folders under the app's userData or install directory. Untrusted `file:` / custom-protocol URLs from a webview can no longer be handed to the OS.
+- **TLS verification restored.** The app no longer trusts every certificate on every Chromium session. Self-signed Open WebUI servers (#108) are still allowed, but only for origins the user has added as connections (plus localhost). Auto-update, GitHub, and Hugging Face use real PKI again.
+- **Local service credentials no longer leak to remote webviews.** Open Terminal API keys and the llama.cpp endpoint were broadcast to every Open WebUI `<webview>`, including remote connections that can call `127.0.0.1` from the user's machine. Those events now go only to the local connection. Startup logs no longer dump `config.json` or `--api-key`.
+- **Guest webview IPC allowlist.** Open WebUI pages loaded in a `<webview>` (including remote connections) can no longer invoke the full privileged desktop API. Guest `send()` is limited to `token:update`, `app:info`, `app:data`, and `window:isFocused`, and `will-attach-webview` now forces sandbox / contextIsolation / no Node. The previous `electronAPI[type]` dispatch was both a privilege-escalation path and a protocol mismatch — Open WebUI's real `app:info` / `window:isFocused` calls never reached the right handlers.
+
+### Infrastructure
+
+- **eslint is a CI gate for `src/main` and preload.** `npm run lint:main` must stay at zero findings. Full-repo `npm run lint` is still not a gate (renderer has hundreds of pre-existing hits).
+- **Main-process security helpers have a `node:test` suite.** `npm test` covers checksums, child-env, linux sandbox gating, HF path confinement, llama.cpp release picking, external-URL allowlisting, and the guest IPC protocol. CI on `develop` runs it after typecheck.
+- **Main-process TypeScript is actually typechecked.** Removed `// @ts-nocheck` from `src/main/` so `npm run typecheck` covers the process manager, not only preload.
+- **macOS and Windows releases no longer ship unsigned.** The release workflow fails if Apple codesign/notarization or Azure Trusted Signing fails, instead of publishing an unsigned fallback. Linux packages are unchanged.
+- **Electron fuses flipped at pack time.** Packaged builds disable `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS`, and `--inspect`, validate `app.asar` integrity (macOS/Windows), load app code only from the asar, and do not grant `file:` extra privileges. Native modules still unpack (`node-pty`).
+- **Electron pinned to 39.8.10.** The lockfile was on 39.8.2 and `package.json` allowed `^39.2.6`, both below the GHSA-h7rp-cf8h-j98x / CVE-2026-70601 fix (39.8.9). 39.8.10 is the current 39.x patch line (also includes later Chromium backports). Exact pin so installs cannot slide back.
+- **PR typecheck and tests on `develop`.** Pull requests and pushes to `develop` run `npm run typecheck` and `npm test`. Full-repo `eslint` is not a gate yet — it currently reports hundreds of pre-existing findings on `develop`.
+
 ## [0.0.20] - 2026-05-07
 
 ### Fixed
