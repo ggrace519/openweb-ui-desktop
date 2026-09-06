@@ -40,6 +40,8 @@ On Linux, Chromium `--no-sandbox` is only for AppImage/snap/Flatpak, `ELECTRON_D
 
 Packaged builds flip Electron fuses in `electron-builder.yml` (`runAsNode` off, asar integrity, no `NODE_OPTIONS` / `--inspect` / `file:` extra privileges).
 
+The `release` workflow fails closed if macOS codesign/notarization or Windows Azure Trusted Signing fails. It does not publish unsigned macOS/Windows fallbacks.
+
 ## Hardening series
 
 See `DECISIONS.md`. Land each fix on its own branch/PR against `develop` so they stay cherry-pickable for upstream.
