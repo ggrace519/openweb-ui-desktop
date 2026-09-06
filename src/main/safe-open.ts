@@ -1,5 +1,4 @@
 import path from 'path'
-import { shell } from 'electron'
 
 const ALLOWED_SCHEMES = new Set(['http:', 'https:', 'mailto:'])
 
@@ -35,5 +34,6 @@ export async function openExternalUrl(url: string): Promise<void> {
   if (!isAllowedExternalUrl(normalized)) {
     throw new Error('Blocked opening a URL with a disallowed scheme')
   }
+  const { shell } = await import('electron')
   await shell.openExternal(normalized)
 }
