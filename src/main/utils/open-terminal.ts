@@ -1,4 +1,3 @@
-// @ts-nocheck
 
 import crypto from 'crypto'
 import log from 'electron-log'
@@ -15,6 +14,7 @@ import {
   pythonEnv
 } from './index'
 import { ServiceLock, isProcessAlive } from './service-lock'
+import { errorMessage } from './error-message'
 
 // ─── State ──────────────────────────────────────────────
 
@@ -44,6 +44,9 @@ export const startOpenTerminal = async (
   onStatus?: (status: string) => void
 ): Promise<{ url: string; apiKey: string; pid: number }> => {
   if (!lock.acquire()) {
+    if (url == null || apiKey == null || pid == null) {
+      throw new Error('Open Terminal start is already in progress')
+    }
     return { url, apiKey, pid }
   }
 
@@ -58,7 +61,7 @@ export const startOpenTerminal = async (
       if (!ok) throw new Error('Python installation returned false')
     } catch (err) {
       throw new Error(
-        `Python is required for Open Terminal but installation failed: ${err?.message ?? err}`
+        `Python is required for Open Terminal but installation failed: ${errorMessage(err)}`
       )
     }
     if (!isPythonInstalled()) {
@@ -76,7 +79,7 @@ export const startOpenTerminal = async (
     } catch (err) {
       throw new Error(
         `Open Terminal is not installed and auto-install failed. ` +
-        `Please connect to the internet and try again. (${err?.message ?? err})`
+        `Please connect to the internet and try again. (${errorMessage(err)})`
       )
     }
   }
@@ -132,7 +135,7 @@ export const startOpenTerminal = async (
     })
   } catch (error) {
     throw new Error(
-      `Failed to spawn Open Terminal: ${error?.message ?? error}`
+      `Failed to spawn Open Terminal: ${errorMessage(error)}`
     )
   }
 

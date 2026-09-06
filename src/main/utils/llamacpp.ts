@@ -1,4 +1,3 @@
-// @ts-nocheck
 
 import * as fs from 'fs'
 import * as path from 'path'
@@ -17,6 +16,7 @@ import {
 } from './index'
 import { parseGithubDigest, fileMatchesSha256, assertSha256 } from './artifact-integrity'
 import { sanitizeChildEnv, sanitizeLlamaExtraArgs } from './child-env'
+import { errorMessage } from './error-message'
 
 import { getModelsDir } from './huggingface'
 import { ServiceLock, isProcessAlive } from './service-lock'
@@ -283,7 +283,7 @@ export const setupLlamaCpp = async (
     throw new Error(
       `Failed to fetch release info (no internet?) and no cached llama.cpp binary found. ` +
       `Please connect to the internet for the initial llama.cpp installation. ` +
-      `Original error: ${error?.message ?? error}`
+      `Original error: ${errorMessage(error)}`
     )
   }
 
@@ -355,7 +355,7 @@ export const setupLlamaCpp = async (
         execFileSync('unzip', ['-o', downloadPath, '-d', versionDir])
       }
     } catch (error) {
-      throw new Error(`Failed to extract zip: ${error?.message ?? error}`)
+      throw new Error(`Failed to extract zip: ${errorMessage(error)}`)
     }
   } else {
     await tar.x({ cwd: versionDir, file: downloadPath })
@@ -423,7 +423,7 @@ export const checkLlamaCppUpdate = async (): Promise<{ currentVersion: string | 
 
 export const updateLlamaCpp = async (
   onStatus?: (status: string) => void
-): Promise<{ url?: string; status?: string; pid?: number; binaryPath?: string; version?: string | null }> => {
+): Promise<ReturnType<typeof getLlamaCppInfo>> => {
   // 1. Verify network is available BEFORE destructive operations —
   //    don't delete the old binary if we can't download a replacement.
   onStatus?.('Checking for updates…')
@@ -441,10 +441,11 @@ export const updateLlamaCpp = async (
     }
     const data = await response.json()
     releaseTag = data.tag_name
+    log.info(`Updating llama.cpp from GitHub latest: ${releaseTag}`)
   } catch (error) {
     throw new Error(
       `Cannot update llama.cpp: unable to reach GitHub. ` +
-      `Please check your internet connection. (${error?.message ?? error})`
+      `Please check your internet connection. (${errorMessage(error)})`
     )
   }
 
@@ -482,6 +483,9 @@ export const startLlamaCpp = async (
   onStatus?: (status: string) => void
 ): Promise<{ url: string; pid: number }> => {
   if (!lock.acquire()) {
+    if (url == null || pid == null) {
+      throw new Error('llama-server start is already in progress')
+    }
     return { url, pid }
   }
 
@@ -534,7 +538,7 @@ export const startLlamaCpp = async (
     })
   } catch (error) {
     status = 'failed'
-    throw new Error(`Failed to spawn llama-server: ${error?.message ?? error}`)
+    throw new Error(`Failed to spawn llama-server: ${errorMessage(error)}`)
   }
 
   const spawnedPid = spawned.pid

@@ -1,4 +1,3 @@
-// @ts-nocheck
 
 import * as fs from 'fs'
 import * as os from 'os'
@@ -8,7 +7,7 @@ import crypto from 'crypto'
 
 import * as tar from 'tar'
 
-import { app, Notification, net as electronNet } from 'electron'
+import { app, net as electronNet } from 'electron'
 import { openExternalUrl } from '../safe-open'
 import {
   PYTHON_SHA256,
@@ -17,7 +16,8 @@ import {
   fileMatchesSha256
 } from './artifact-integrity'
 import { sanitizeChildEnv } from './child-env'
-import { execFileSync, exec, spawn, execSync, execFile } from 'child_process'
+import { errorMessage } from './error-message'
+import { execFileSync, execSync, execFile } from 'child_process'
 
 import log from 'electron-log'
 log.transports.file.resolvePathFn = () => getLogFilePath('main')
@@ -186,7 +186,12 @@ const generateDownloadUrl = () => {
   }
 }
 
-export const downloadFileWithProgress = async (url, downloadPath, onProgress, expectedSha256) => {
+export const downloadFileWithProgress = async (
+  url: string,
+  downloadPath: string,
+  onProgress: ((percent: number, downloaded: number, total: number) => void) | undefined,
+  expectedSha256: string
+) => {
   if (!expectedSha256) {
     throw new Error('Refusing to download without a SHA-256 digest')
   }
@@ -216,7 +221,9 @@ export const getPythonInstallationDir = (): string => {
   return path.normalize(pythonDir)
 }
 
-const downloadPython = async (onProgress = null) => {
+const downloadPython = async (
+  onProgress?: (percent: number, downloaded: number, total: number) => void
+) => {
   const { url, sha256 } = generateDownloadUrl()
   const downloadPath = getPythonDownloadPath()
 
@@ -240,7 +247,7 @@ const downloadPython = async (onProgress = null) => {
     log.info(`Python downloaded and verified: ${result}`)
     return result
   } catch (error) {
-    log.error(`Download failed: ${error?.message}`)
+    log.error(`Download failed: ${errorMessage(error)}`)
     throw error
   }
 }
@@ -327,7 +334,7 @@ export const installPython = async (installationDir?: string, onStatus?: (status
   } catch (error) {
     log.error('Failed to install uv:', error)
     throw new Error(
-      `Failed to install the uv package manager: ${error?.message || 'unknown error'}`
+      `Failed to install the uv package manager: ${errorMessage(error)}`
     )
   }
 }
@@ -554,7 +561,7 @@ export const getServerPty = (pid: number): pty.IPty | undefined => serverPtyProc
 
 export const startServer = async (
   expose = false,
-  port = null
+  port: number | null = null
 ): Promise<{ url: string; pid: number }> => {
   await stopAllServers()
   const config = await getConfig()
@@ -604,7 +611,7 @@ export const startServer = async (
     })
   } catch (error) {
     throw new Error(
-      `Failed to spawn PTY with ${pythonPath}: ${error?.message ?? error}`
+      `Failed to spawn PTY with ${pythonPath}: ${errorMessage(error)}`
     )
   }
 
@@ -817,12 +824,14 @@ export interface AppConfig {
     port: number
     serveOnLocalNetwork: boolean
     autoUpdate: boolean
+    version?: string
   }
   openTerminal: {
     enabled: boolean
     port: number
     cwd: string
     apiKey: string
+    version?: string
   }
   llamaCpp: {
     enabled: boolean
@@ -859,11 +868,13 @@ const DEFAULT_CONFIG: AppConfig = {
   },
   openTerminal: {
     enabled: false,
+    port: 39284,
     cwd: '',
     apiKey: ''
   },
   llamaCpp: {
     enabled: false,
+    port: 18881,
     version: 'latest',
     variant: 'cpu',
     extraArgs: []

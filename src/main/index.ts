@@ -1,4 +1,3 @@
-// @ts-nocheck
 
 import {
   app,
@@ -15,7 +14,8 @@ import {
   Menu,
   ipcMain,
   Tray,
-  dialog
+  dialog,
+  type MenuItemConstructorOptions
 } from 'electron'
 import path, { join } from 'path'
 import { readFile, statfs } from 'fs/promises'
@@ -44,7 +44,6 @@ import {
   setConfig,
   startServer,
   stopAllServers,
-  uninstallPython,
   validateRemoteUrl,
   type AppConfig,
   type Connection
@@ -87,6 +86,7 @@ import { registerGuestWebviewPolicy } from './guest-webview'
 import { registerCertificatePolicy } from './tls'
 import { isPathInside } from './safe-open'
 import { linuxNeedsNoSandbox } from './linux-sandbox'
+import { errorMessage } from './utils/error-message'
 
 import log from 'electron-log'
 log.transports.file.resolvePathFn = () => getLogFilePath('main')
@@ -315,9 +315,6 @@ function createSpotlightWindow(): BrowserWindow {
     hasShadow: false,
     show: false,
     focusable: true,
-    // Ensure the window appears on whichever Space/desktop the user is
-    // currently on, rather than pulling them back to the primary Space.
-    visibleOnAllWorkspaces: true,
     icon: path.join(__dirname, 'assets/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/spotlight-preload.js'),
@@ -325,6 +322,8 @@ function createSpotlightWindow(): BrowserWindow {
       webviewTag: false
     }
   })
+  // Keep Spotlight on the current Space instead of stealing the primary desktop.
+  spotlightWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     spotlightWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/spotlight.html`)
@@ -470,7 +469,7 @@ function playChime(ascending: boolean): Promise<void> {
     if (!exists) { resolve(); return }
 
     if (process.platform === 'darwin') {
-      execFile('afplay', [soundPath], (err, stdout, stderr) => {
+      execFile('afplay', [soundPath], (err, _stdout, stderr) => {
         if (err) log.warn('afplay error:', err.message, stderr)
         resolve()
       })
@@ -709,7 +708,7 @@ function createMainWindow(show = true): void {
   })
 }
 
-function createContentWindow(url: string, connectionId: string): BrowserWindow {
+export function createContentWindow(url: string, connectionId: string): BrowserWindow {
   if (contentWindow && !contentWindow.isDestroyed()) {
     contentWindow.loadURL(url)
     contentWindow.show()
@@ -778,10 +777,11 @@ function createContentWindow(url: string, connectionId: string): BrowserWindow {
 
 const updateTray = () => {
   if (!tray || !CONFIG) return
+  const cfg = CONFIG
 
   // Remote connections from config
-  const remoteItems = (CONFIG.connections || []).map((conn) => ({
-    label: `${conn.id === CONFIG.defaultConnectionId ? '★ ' : ''}${conn.name}`,
+  const remoteItems = (cfg.connections || []).map((conn) => ({
+    label: `${conn.id === cfg.defaultConnectionId ? '★ ' : ''}${conn.name}`,
     sublabel: conn.url,
     click: async () => {
       const result = await connectTo(conn)
@@ -792,8 +792,8 @@ const updateTray = () => {
   // Virtual local connection (when package is installed)
   const localItem = isPackageInstalled('open-webui')
     ? [{
-        label: `${CONFIG.defaultConnectionId === 'local' ? '★ ' : ''}Open WebUI (Local)`,
-        sublabel: SERVER_URL || `http://127.0.0.1:${CONFIG.localServer?.port ?? 8080}`,
+        label: `${cfg.defaultConnectionId === 'local' ? '★ ' : ''}Open WebUI (Local)`,
+        sublabel: SERVER_URL || `http://127.0.0.1:${cfg.localServer?.port ?? 8080}`,
         click: async () => {
           const result = await connectTo(buildLocalConnection())
           if (result) sendToRenderer('connection:open', result)
@@ -841,7 +841,7 @@ const updateTray = () => {
     }
   ]
 
-  const trayMenu = Menu.buildFromTemplate(trayMenuTemplate)
+  const trayMenu = Menu.buildFromTemplate(trayMenuTemplate as MenuItemConstructorOptions[])
   tray?.setContextMenu(trayMenu)
 }
 
@@ -917,10 +917,6 @@ const connectTo = async (connection: Connection) => {
 
 // ─── Server Lifecycle ───────────────────────────────────
 
-// Active PTY data listener — when a MessagePort is connected, PTY data
-// flows to the port. This disposable gets replaced on each pty:connect.
-let activePtyDataDisposable: { dispose: () => void } | null = null
-
 const startServerHandler = async (): Promise<boolean> => {
   if (SERVER_STATUS === 'starting' || SERVER_STATUS === 'started') {
     log.info('[server] Already running or starting, skipping duplicate start')
@@ -978,7 +974,7 @@ const startServerHandler = async (): Promise<boolean> => {
     log.error('Failed to start server:', error)
     SERVER_STATUS = 'failed'
     sendToRenderer('status:server', SERVER_STATUS)
-    sendToRenderer('error', { message: `Failed to start server: ${error?.message}` })
+    sendToRenderer('error', { message: `Failed to start server: ${errorMessage(error)}` })
     updateTray()
     return false
   }
@@ -1172,7 +1168,7 @@ const resetAppHandler = async () => {
     new Notification({ title: 'Open WebUI', body: 'Application has been reset.' }).show()
   } catch (error) {
     log.error('Failed to reset:', error)
-    new Notification({ title: 'Open WebUI', body: `Reset failed: ${error.message}` }).show()
+    new Notification({ title: 'Open WebUI', body: `Reset failed: ${errorMessage(error)}` }).show()
   }
 }
 
@@ -1445,7 +1441,7 @@ if (!gotTheLock) {
         return res
       } catch (error) {
         sendToRenderer('status:python', false)
-        sendToRenderer('error', { message: error?.message ?? 'Python installation failed. Please check your internet connection and try again.' })
+        sendToRenderer('error', { message: errorMessage(error) || 'Python installation failed. Please check your internet connection and try again.' })
         return false
       }
     })
@@ -1487,7 +1483,7 @@ if (!gotTheLock) {
         return true
       } catch (error) {
         sendToRenderer('status:package', false)
-        sendToRenderer('error', { message: error?.message ?? 'Package installation failed. Please check your internet connection and try again.' })
+        sendToRenderer('error', { message: errorMessage(error) || 'Package installation failed. Please check your internet connection and try again.' })
         return false
       }
     })
@@ -1813,11 +1809,11 @@ if (!gotTheLock) {
 
         const result = await response.json()
         return result
-      } catch (error: any) {
+      } catch (error) {
         log.error('voiceInput:transcribe failed:', error)
         new Notification({
           title: 'Voice Input Failed',
-          body: error?.message || 'Transcription failed. Check logs for details.'
+          body: errorMessage(error) || 'Transcription failed. Check logs for details.'
         }).show()
         throw error
       }
@@ -1888,7 +1884,7 @@ if (!gotTheLock) {
       } catch (error) {
         log.error('Failed to start Open Terminal:', error)
         sendToRenderer('status:open-terminal', 'failed')
-        sendToRenderer('error', { message: `Open Terminal failed: ${error?.message}` })
+        sendToRenderer('error', { message: `Open Terminal failed: ${errorMessage(error)}` })
         return null
       }
     })
@@ -1929,7 +1925,7 @@ if (!gotTheLock) {
       } catch (error) {
         log.error('Failed to setup llamacpp:', error)
         sendToRenderer('status:llamacpp', 'failed')
-        sendToRenderer('error', { message: `llamacpp setup failed: ${error?.message}` })
+        sendToRenderer('error', { message: `llamacpp setup failed: ${errorMessage(error)}` })
         return null
       }
     })
@@ -1957,7 +1953,7 @@ if (!gotTheLock) {
       } catch (error) {
         log.error('Failed to start llamacpp:', error)
         sendToRenderer('status:llamacpp', 'failed')
-        sendToRenderer('error', { message: `llamacpp failed: ${error?.message}` })
+        sendToRenderer('error', { message: `llamacpp failed: ${errorMessage(error)}` })
         return null
       }
     })
@@ -2001,7 +1997,9 @@ if (!gotTheLock) {
           })
           setTimeout(() => sendToRenderer('models:refresh'), 500)
         }
-        await setConfig({ llamaCpp: { ...CONFIG?.llamaCpp, enabled: false } })
+        if (CONFIG?.llamaCpp) {
+          await setConfig({ llamaCpp: { ...CONFIG.llamaCpp, enabled: false } })
+        }
         CONFIG = await getConfig()
         return true
       } catch (error) {
@@ -2042,8 +2040,8 @@ if (!gotTheLock) {
         return filepath
       } catch (error) {
         log.error('Failed to download model:', error)
-        sendToRenderer('status:huggingface-download', { repo, filename, status: 'failed', error: error?.message })
-        sendToRenderer('error', { message: `Model download failed: ${error?.message}` })
+        sendToRenderer('status:huggingface-download', { repo, filename, status: 'failed', error: errorMessage(error) })
+        sendToRenderer('error', { message: `Model download failed: ${errorMessage(error)}` })
         return null
       }
     })
@@ -2115,7 +2113,7 @@ if (!gotTheLock) {
       } catch (error) {
         log.error('Failed to update llamacpp:', error)
         sendToRenderer('status:llamacpp', 'failed')
-        sendToRenderer('error', { message: `llamacpp update failed: ${error?.message}` })
+        sendToRenderer('error', { message: `llamacpp update failed: ${errorMessage(error)}` })
         throw error
       }
     })
@@ -2135,7 +2133,7 @@ if (!gotTheLock) {
 
     // Enable screen capture
     session.defaultSession.setDisplayMediaRequestHandler(
-      (request, callback) => {
+      (_request, callback) => {
         desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
           callback({ video: sources[0], audio: 'loopback' })
         })
