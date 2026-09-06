@@ -57,5 +57,7 @@ export function huggingfaceDownloadUrl(repo: string, filename: string): string {
 
 export function huggingfaceRepoApiUrl(repo: string): string {
   const [owner, name] = assertSafeRepo(repo).split('/')
-  return `https://huggingface.co/api/models/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`
+  // blobs=true is required for siblings[].lfs.sha256 (the GGUF content hash).
+  // Without it the Hub only returns rfilename.
+  return `https://huggingface.co/api/models/${encodeURIComponent(owner)}/${encodeURIComponent(name)}?blobs=true`
 }

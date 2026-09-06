@@ -234,7 +234,7 @@ The app downloads a python-build-standalone tarball and llama.cpp GitHub release
 
 Pin the CPython `install_only` tarball filenames to the official 20260310 SHA-256 sums and refuse unknown platform/arch pairs. Require GitHub's `digest: sha256:…` on llama.cpp assets (fail closed if missing). Hash while downloading; re-hash cached archives before reuse; delete on mismatch.
 
-Hugging Face GGUF downloads stay on their own path (user-chosen files, no in-repo pin). Model-file LFS SHA-256 is a follow-on.
+Hugging Face GGUF downloads stay on their own path (user-chosen files, no in-repo pin). Model-file LFS SHA-256 is verified at download time against the Hub `?blobs=true` digest (#34).
 
 ### Rationale
 

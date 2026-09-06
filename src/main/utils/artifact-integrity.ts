@@ -30,13 +30,34 @@ export const PYTHON_SHA256: Record<string, string> = {
     'eddc8bf40c7fca5032acd5de4b89e748e17b16cf61918320a0506c7e450a8df3'
 }
 
+const SHA256_HEX = /^[0-9a-f]{64}$/
+
 export function parseGithubDigest(digest: unknown): string {
   if (typeof digest !== 'string' || !digest.startsWith('sha256:')) {
     throw new Error('GitHub release asset is missing a sha256 digest')
   }
   const hex = digest.slice('sha256:'.length).toLowerCase()
-  if (!/^[0-9a-f]{64}$/.test(hex)) {
+  if (!SHA256_HEX.test(hex)) {
     throw new Error(`Invalid GitHub asset digest: ${digest}`)
+  }
+  return hex
+}
+
+/**
+ * Hugging Face Hub `siblings[].lfs.sha256` (from `?blobs=true`).
+ * Do not use `blobId` / git `oid` — those are the LFS pointer, not the GGUF.
+ */
+export function parseHfLfsSha256(lfs: unknown): string {
+  if (!lfs || typeof lfs !== 'object') {
+    throw new Error('Hugging Face file is missing LFS SHA-256')
+  }
+  const sha = (lfs as { sha256?: unknown }).sha256
+  if (typeof sha !== 'string') {
+    throw new Error('Hugging Face file is missing LFS SHA-256')
+  }
+  const hex = sha.toLowerCase()
+  if (!SHA256_HEX.test(hex)) {
+    throw new Error('Hugging Face file is missing LFS SHA-256')
   }
   return hex
 }
@@ -76,11 +97,19 @@ export async function downloadAndVerifySha256(
   url: string,
   destPath: string,
   expectedHex: string,
-  onProgress?: (percent: number, downloaded: number, total: number) => void
+  onProgress?: (percent: number, downloaded: number, total: number) => void,
+  init?: { headers?: Record<string, string>; signal?: AbortSignal }
 ): Promise<string> {
   const expected = expectedHex.toLowerCase()
+  if (!SHA256_HEX.test(expected)) {
+    throw new Error('Refusing to download without a SHA-256 digest')
+  }
   const tmpPath = destPath + '.tmp'
-  const response = await fetch(url)
+  const response = await fetch(url, {
+    headers: init?.headers,
+    signal: init?.signal,
+    redirect: 'follow'
+  })
   if (!response.ok || !response.body) {
     throw new Error(`HTTP error! status: ${response.status}`)
   }
