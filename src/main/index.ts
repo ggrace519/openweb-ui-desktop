@@ -87,6 +87,7 @@ import { registerCertificatePolicy } from './tls'
 import { isPathInside } from './safe-open'
 import { linuxNeedsNoSandbox } from './linux-sandbox'
 import { errorMessage } from './utils/error-message'
+import { originOf, shouldOpenInSystemBrowser } from './webview-navigation'
 
 import log from 'electron-log'
 log.transports.file.resolvePathFn = () => getLogFilePath('main')
@@ -1299,6 +1300,8 @@ if (!gotTheLock) {
     // For webview guests we also intercept navigation and popup events
     // so that external links open in the user's default browser instead
     // of navigating the webview or spawning a new Electron window (#165).
+    const partitionBySession = new WeakMap<Electron.Session, string>()
+
     app.on('web-contents-created', (_event, contents) => {
       contents.on('render-process-gone', (_e, details) => {
         if (details.reason !== 'clean-exit') {
@@ -1309,26 +1312,64 @@ if (!gotTheLock) {
         }
       })
 
+      contents.on('will-attach-webview', (_e, _prefs, params) => {
+        if (params.partition) {
+          partitionBySession.set(session.fromPartition(params.partition), params.partition)
+        }
+      })
+
       if (contents.getType() === 'webview') {
-        // ── Popups (target="_blank" links) → open in default browser ──
+        // Chat links leave the Open WebUI origin in the OS browser (#165).
+        // Cloudflare Access / OIDC must stay in this partition (#39).
+        const homeOriginFor = (): string | null => {
+          const partition = partitionBySession.get(contents.session) ?? ''
+          const prefix = 'persist:connection-'
+          if (!partition.startsWith(prefix)) return null
+          const id = partition.slice(prefix.length)
+          if (id === 'local') {
+            const url =
+              SERVER_URL || `http://127.0.0.1:${CONFIG?.localServer?.port ?? 8080}`
+            return originOf(url)
+          }
+          const conn = CONFIG?.connections?.find((c) => c.id === id)
+          return conn?.url ? originOf(conn.url) : null
+        }
+
         contents.setWindowOpenHandler(({ url }) => {
-          openUrl(url)
-          return { action: 'deny' }
+          if (
+            shouldOpenInSystemBrowser({
+              currentUrl: contents.getURL(),
+              targetUrl: url,
+              homeOrigin: homeOriginFor()
+            })
+          ) {
+            openUrl(url)
+            return { action: 'deny' }
+          }
+          return {
+            action: 'allow',
+            overrideBrowserWindowOptions: {
+              autoHideMenuBar: true,
+              webPreferences: {
+                sandbox: true,
+                nodeIntegration: false,
+                contextIsolation: true
+              }
+            }
+          }
         })
 
-        // ── In-page navigation to a different origin → open externally ──
-        // This catches regular link clicks (no target) that would navigate
-        // the webview away from the Open WebUI instance.
-        contents.on('will-navigate', (event, url) => {
-          try {
-            const currentOrigin = new URL(contents.getURL()).origin
-            const targetOrigin = new URL(url).origin
-            if (targetOrigin !== currentOrigin) {
-              event.preventDefault()
-              openUrl(url)
-            }
-          } catch {
-            // Malformed URL — let it through so Chromium can handle/reject it
+        contents.on('will-navigate', (details) => {
+          if (details.isMainFrame === false) return
+          if (
+            shouldOpenInSystemBrowser({
+              currentUrl: contents.getURL(),
+              targetUrl: details.url,
+              homeOrigin: homeOriginFor()
+            })
+          ) {
+            details.preventDefault()
+            openUrl(details.url)
           }
         })
 
