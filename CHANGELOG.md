@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Local service credentials no longer leak to remote webviews.** Open Terminal API keys and the llama.cpp endpoint were broadcast to every Open WebUI `<webview>`, including remote connections that can call `127.0.0.1` from the user's machine. Those events now go only to the local connection. Startup logs no longer dump `config.json` or `--api-key`.
 - **Guest webview IPC allowlist.** Open WebUI pages loaded in a `<webview>` (including remote connections) can no longer invoke the full privileged desktop API. Guest `send()` is limited to `token:update`, `app:info`, `app:data`, and `window:isFocused`, and `will-attach-webview` now forces sandbox / contextIsolation / no Node. The previous `electronAPI[type]` dispatch was both a privilege-escalation path and a protocol mismatch — Open WebUI's real `app:info` / `window:isFocused` calls never reached the right handlers.
 
 ### Infrastructure
