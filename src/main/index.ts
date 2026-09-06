@@ -84,6 +84,7 @@ import {
 
 import { initUpdater, checkForUpdates, downloadUpdate, installUpdate } from './updater'
 import { registerGuestWebviewPolicy } from './guest-webview'
+import { registerCertificatePolicy } from './tls'
 
 import log from 'electron-log'
 log.transports.file.resolvePathFn = () => getLogFilePath('main')
@@ -1249,34 +1250,17 @@ if (!gotTheLock) {
       log.info('Running with GPU sandbox disabled (marker file present)')
     }
 
-    // ─── Self-Signed / Untrusted Certificate Support ─
-    // Allow connections to Open WebUI instances that use self-signed or
-    // otherwise untrusted SSL certificates (issue #108). The user
-    // explicitly configures the server URL, so trusting all certs is
-    // acceptable — this matches the behaviour of VS Code, Postman, and
-    // other Electron apps used in enterprise/self-hosted environments.
-    app.on('certificate-error', (event, _webContents, url, error, certificate, callback) => {
-      log.warn(
-        `Certificate error: ${error} for ${url} ` +
-        `(subject: ${certificate.subjectName}, issuer: ${certificate.issuerName})`
-      )
-      event.preventDefault()
-      callback(true)
+    // Self-signed Open WebUI servers (#108): allow cert errors only for
+    // origins the user added as connections, plus loopback. GitHub,
+    // Hugging Face, and auto-update keep default PKI.
+    registerCertificatePolicy(() => {
+      const urls = (CONFIG?.connections ?? []).map((c) => c.url)
+      if (SERVER_URL) urls.push(SERVER_URL)
+      return urls
     })
 
-    // Trust all certs on the default session (used by net.fetch() in
-    // validateRemoteUrl / checkUrlAndOpen).
-    session.defaultSession.setCertificateVerifyProc((_request, callback) => {
-      callback(0) // 0 = verified/trusted
-    })
-
-    // Webviews use partitioned sessions (persist:connection-*). Each
-    // new partition's session also needs to trust all certs.
+    // Webviews use partitioned sessions (persist:connection-*).
     app.on('session-created', (newSession) => {
-      newSession.setCertificateVerifyProc((_request, callback) => {
-        callback(0)
-      })
-
       // Grant media / notification permissions for webview partition sessions
       // so that auth flows, media capture, and notifications work correctly.
       newSession.setPermissionRequestHandler((_webContents, permission, callback) => {
