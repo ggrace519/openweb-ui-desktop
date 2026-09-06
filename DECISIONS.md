@@ -30,7 +30,7 @@ CI currently runs only on push to `release` (upstream's packaging branch). PR ch
 ## ADR-0002: Guest webviews are hostile
 
 **Date:** 2026-09-05
-**Status:** Proposed
+**Status:** Accepted
 **Phase:** Hardening
 **Deciders:** Greg
 
@@ -55,7 +55,7 @@ New desktop↔Open WebUI features need an explicit protocol bump, not a new `ele
 ## ADR-0003: Certificate trust is per-connection, never global
 
 **Date:** 2026-09-05
-**Status:** Proposed
+**Status:** Accepted
 **Phase:** Hardening
 **Deciders:** Greg
 
@@ -80,7 +80,7 @@ Misconfigured remotes with bad certs that are not in the connections list will f
 ## ADR-0004: Child runtimes have a real quit gate
 
 **Date:** 2026-09-05
-**Status:** Proposed
+**Status:** Accepted
 **Phase:** Hardening
 **Deciders:** Greg
 
@@ -115,4 +115,31 @@ Land in this order. Each is its own branch. Later items may stack if they touch 
 | 5 | `fix/hf-path-traversal` | Allowlist HF repo/filename; confine to models dir |
 | 6 | `fix/service-lock-quit` | ADR-0004 |
 
-Follow-ons (not in the first wave): Linux sandbox not globally off, fail CI if codesign fails, pin/hash Python and llama.cpp downloads, drop `@ts-nocheck`, Electron fuses. Electron is pinned to 39.8.10 (`chore/bump-electron`). PR typecheck CI is on `develop`.
+Follow-ons (not in the first wave): Linux sandbox not globally off, fail CI if codesign fails, drop `@ts-nocheck`, Electron fuses. Electron is pinned to 39.8.10 (`chore/bump-electron`). PR typecheck CI is on `develop`. Python / llama.cpp downloads are checksum-verified (`fix/artifact-checksums`).
+
+---
+
+## ADR-0005: Downloaded runtimes are hashed before extract
+
+**Date:** 2026-09-05
+**Status:** Proposed
+**Phase:** Hardening
+**Deciders:** Greg
+
+### Context
+
+The app downloads a python-build-standalone tarball and llama.cpp GitHub release archives, then extracts and executes them. Those transfers used HTTPS only — no pinned digest — so a compromised GitHub asset, a truncated cache, or a swapped `python.tar.gz` in userData would still be installed.
+
+### Decision
+
+Pin the CPython `install_only` tarball filenames to the official 20260310 SHA-256 sums and refuse unknown platform/arch pairs. Require GitHub's `digest: sha256:…` on llama.cpp assets (fail closed if missing). Hash while downloading; re-hash cached archives before reuse; delete on mismatch.
+
+Hugging Face GGUF downloads stay on their own path (user-chosen files, no in-repo pin). Model-file LFS SHA-256 is a follow-on.
+
+### Rationale
+
+Integrity of the interpreter and inference binary is a software-supply-chain control, not a nice-to-have. GitHub now publishes asset digests; python-build-standalone publishes SHA256SUMS. Fail closed rather than install unverified bytes.
+
+### Consequences
+
+A llama.cpp release with no `digest` field cannot be installed until GitHub provides one (current `b*` binary releases do). Bumping the Python standalone date requires updating the pin table. `releases/latest` for llama.cpp currently resolves to `v0.4.0`, which has no binary assets — that is a separate bug from checksums.

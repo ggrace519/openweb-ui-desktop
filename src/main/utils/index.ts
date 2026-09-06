@@ -10,6 +10,12 @@ import * as tar from 'tar'
 
 import { app, Notification, net as electronNet } from 'electron'
 import { openExternalUrl } from '../safe-open'
+import {
+  PYTHON_SHA256,
+  assertSha256,
+  downloadAndVerifySha256,
+  fileMatchesSha256
+} from './artifact-integrity'
 import { execFileSync, exec, spawn, execSync, execFile } from 'child_process'
 
 import log from 'electron-log'
@@ -163,47 +169,31 @@ const getArchString = () => {
 }
 
 const generateDownloadUrl = () => {
-  const baseUrl = 'https://github.com/astral-sh/python-build-standalone/releases/download'
   const releaseDate = '20260310'
   const pythonVersion = '3.12.13'
-  const archString = getArchString()
-  const platformString = getPlatformString()
-  const filename = `cpython-${pythonVersion}+${releaseDate}-${archString}-${platformString}-install_only.tar.gz`
-  return `${baseUrl}/${releaseDate}/${filename}`
+  const filename = `cpython-${pythonVersion}+${releaseDate}-${getArchString()}-${getPlatformString()}-install_only.tar.gz`
+  const sha256 = PYTHON_SHA256[filename]
+  if (!sha256) {
+    throw new Error(
+      `No pinned SHA-256 for Python standalone archive ${filename} (${os.platform()} ${os.arch()})`
+    )
+  }
+  return {
+    url: `https://github.com/astral-sh/python-build-standalone/releases/download/${releaseDate}/${filename}`,
+    filename,
+    sha256
+  }
 }
 
-export const downloadFileWithProgress = async (url, downloadPath, onProgress) => {
+export const downloadFileWithProgress = async (url, downloadPath, onProgress, expectedSha256) => {
+  if (!expectedSha256) {
+    throw new Error('Refusing to download without a SHA-256 digest')
+  }
   try {
-    const response = await fetch(url)
-    if (!response || !response.ok) {
-      throw new Error(`HTTP error! status: ${response?.status}`)
-    }
-    const totalSize = parseInt(response.headers.get('content-length'), 10)
-    let downloadedSize = 0
-    const reader = response.body.getReader()
-    const chunks = []
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      chunks.push(value)
-      downloadedSize += value.length
-      if (onProgress && totalSize) {
-        onProgress((downloadedSize / totalSize) * 100, downloadedSize, totalSize)
-      }
-    }
-
-    const buffer = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))
-    fs.writeFileSync(downloadPath, buffer)
-    log.info('File downloaded successfully:', downloadPath)
-    return downloadPath
+    const result = await downloadAndVerifySha256(url, downloadPath, expectedSha256, onProgress)
+    log.info('File downloaded and verified:', downloadPath)
+    return result
   } catch (error) {
-    // Clean up partial downloads
-    try {
-      if (fs.existsSync(downloadPath)) {
-        fs.unlinkSync(downloadPath)
-      }
-    } catch {}
     log.error('Download failed:', error)
     throw error
   }
@@ -226,7 +216,7 @@ export const getPythonInstallationDir = (): string => {
 }
 
 const downloadPython = async (onProgress = null) => {
-  const url = generateDownloadUrl()
+  const { url, sha256 } = generateDownloadUrl()
   const downloadPath = getPythonDownloadPath()
 
   log.info(`Detected system: ${os.platform()} ${os.arch()}`)
@@ -234,13 +224,19 @@ const downloadPython = async (onProgress = null) => {
   log.info(`URL: ${url}`)
 
   if (fs.existsSync(downloadPath)) {
-    log.info(`File already exists: ${downloadPath}`)
-    return downloadPath
+    if (fileMatchesSha256(downloadPath, sha256)) {
+      log.info(`Using verified cached Python archive: ${downloadPath}`)
+      return downloadPath
+    }
+    log.warn(`Cached Python archive failed checksum; re-downloading: ${downloadPath}`)
+    try {
+      fs.unlinkSync(downloadPath)
+    } catch {}
   }
 
   try {
-    const result = await downloadFileWithProgress(url, downloadPath, onProgress)
-    log.info(`Python downloaded successfully to: ${result}`)
+    const result = await downloadFileWithProgress(url, downloadPath, onProgress, sha256)
+    log.info(`Python downloaded and verified: ${result}`)
     return result
   } catch (error) {
     log.error(`Download failed: ${error?.message}`)
@@ -258,8 +254,11 @@ const checkInternet = async () => {
 }
 
 export const installPython = async (installationDir?: string, onStatus?: (status: string) => void): Promise<boolean> => {
+  const { sha256 } = generateDownloadUrl()
   const pythonDownloadPath = getPythonDownloadPath()
-  if (!fs.existsSync(pythonDownloadPath)) {
+  const cacheOk =
+    fs.existsSync(pythonDownloadPath) && fileMatchesSha256(pythonDownloadPath, sha256)
+  if (!cacheOk) {
     if (!(await checkInternet())) {
       throw new Error(
         'An active internet connection is required. Please connect to the internet and try again.'
@@ -280,6 +279,7 @@ export const installPython = async (installationDir?: string, onStatus?: (status
     log.error('Python download not found')
     return false
   }
+  assertSha256(pythonDownloadPath, sha256)
 
   installationDir = installationDir || getPythonInstallationDir()
   log.info(installationDir, pythonDownloadPath)
