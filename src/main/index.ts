@@ -840,8 +840,7 @@ const updateTray = () => {
     {
       label: 'Quit Open WebUI',
       accelerator: 'CommandOrControl+Q',
-      click: async () => {
-        await stopServerHandler()
+      click: () => {
         isQuiting = true
         app.quit()
       }
@@ -1182,7 +1181,12 @@ const resetAppHandler = async () => {
 // ─── Helpers ────────────────────────────────────────────
 
 const sendToRenderer = (type: string, data?: any) => {
-  mainWindow?.webContents.send('main:data', { type, data })
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  try {
+    mainWindow.webContents.send('main:data', { type, data })
+  } catch (error) {
+    log.warn('sendToRenderer skipped (window gone):', error)
+  }
 }
 
 // ─── App Lifecycle ──────────────────────────────────────
@@ -2260,6 +2264,8 @@ if (!gotTheLock) {
   })
 
   app.on('window-all-closed', () => {
+    if (isQuiting) return
+    if (CONFIG?.runInBackground) return
     if (process.platform !== 'darwin') {
       app.quit()
     }
@@ -2269,6 +2275,11 @@ if (!gotTheLock) {
     if (quittingCleanedUp) return
     event.preventDefault()
     isQuiting = true
+    const forceExit = setTimeout(() => {
+      log.warn('Quit cleanup timed out; exiting')
+      quittingCleanedUp = true
+      app.exit(0)
+    }, 8000)
     void (async () => {
       try {
         await stopLlamaCpp()
@@ -2277,7 +2288,9 @@ if (!gotTheLock) {
       } catch (error) {
         log.warn('Error while stopping child processes on quit:', error)
       } finally {
+        clearTimeout(forceExit)
         globalShortcut.unregisterAll()
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy()
         mainWindow = null
         contentWindow = null
         if (spotlightWindow && !spotlightWindow.isDestroyed()) {
@@ -2291,7 +2304,7 @@ if (!gotTheLock) {
         tray?.destroy()
         tray = null
         quittingCleanedUp = true
-        app.quit()
+        app.exit(0)
       }
     })()
   })
