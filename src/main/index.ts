@@ -85,6 +85,7 @@ import {
 import { initUpdater, checkForUpdates, downloadUpdate, installUpdate } from './updater'
 import { registerGuestWebviewPolicy } from './guest-webview'
 import { registerCertificatePolicy } from './tls'
+import { isPathInside } from './safe-open'
 
 import log from 'electron-log'
 log.transports.file.resolvePathFn = () => getLogFilePath('main')
@@ -2077,7 +2078,11 @@ if (!gotTheLock) {
 
     ipcMain.handle('open:path', async (_event, folderPath: string) => {
       if (!folderPath) throw new Error('No path provided')
-      await shell.openPath(folderPath)
+      const allowedRoots = [getUserDataPath(), getInstallDir()]
+      if (!isPathInside(folderPath, allowedRoots)) {
+        throw new Error('Blocked opening a path outside app directories')
+      }
+      await shell.openPath(path.resolve(folderPath))
     })
 
     ipcMain.handle('notification', async (_event, { title, body }) => {
