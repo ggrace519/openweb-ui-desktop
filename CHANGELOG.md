@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Guest webview IPC allowlist.** Open WebUI pages loaded in a `<webview>` (including remote connections) can no longer invoke the full privileged desktop API. Guest `send()` is limited to `token:update`, `app:info`, `app:data`, and `window:isFocused`, and `will-attach-webview` now forces sandbox / contextIsolation / no Node. The previous `electronAPI[type]` dispatch was both a privilege-escalation path and a protocol mismatch — Open WebUI's real `app:info` / `window:isFocused` calls never reached the right handlers.
+
 ### Infrastructure
 
 - **PR typecheck on `develop`.** Pull requests and pushes to `develop` now run `npm run typecheck`. Full-repo `eslint` is not a gate yet — it currently reports hundreds of pre-existing findings on `develop`.

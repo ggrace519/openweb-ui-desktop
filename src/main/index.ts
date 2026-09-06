@@ -83,6 +83,7 @@ import {
 } from './utils/huggingface'
 
 import { initUpdater, checkForUpdates, downloadUpdate, installUpdate } from './updater'
+import { registerGuestWebviewPolicy } from './guest-webview'
 
 import log from 'electron-log'
 log.transports.file.resolvePathFn = () => getLogFilePath('main')
@@ -1207,6 +1208,8 @@ if (!gotTheLock) {
     }
     electronApp.setAppUserModelId('com.openwebui.desktop')
 
+    registerGuestWebviewPolicy()
+
     // ─── GPU Process Crash Recovery ──────────────────
     // If the GPU process exits fatally (e.g. sandbox init failure on
     // certain NVIDIA/Intel drivers), write a marker and relaunch with
@@ -1401,6 +1404,10 @@ if (!gotTheLock) {
       arch: process.arch,
       username: require('os').userInfo().username,
       gpuSandboxDisabled
+    }))
+
+    ipcMain.handle('window:isFocused', () => ({
+      isFocused: !!(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused())
     }))
 
     ipcMain.handle('app:contentPreloadPath', () => {
