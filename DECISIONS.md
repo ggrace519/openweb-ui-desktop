@@ -115,4 +115,4 @@ Land in this order. Each is its own branch. Later items may stack if they touch 
 | 5 | `fix/hf-path-traversal` | Allowlist HF repo/filename; confine to models dir |
 | 6 | `fix/service-lock-quit` | ADR-0004 |
 
-Follow-ons (not in the first wave): Electron ≥39.8.9 (GHSA-h7rp-cf8h-j98x), Linux sandbox not globally off, fail CI if codesign fails, pin/hash Python and llama.cpp downloads, drop `@ts-nocheck`, PR CI, Electron fuses.
+Follow-ons (not in the first wave): Linux sandbox not globally off, fail CI if codesign fails, pin/hash Python and llama.cpp downloads, drop `@ts-nocheck`, Electron fuses. Electron is pinned to 39.8.10 (`chore/bump-electron`). PR typecheck CI is on `develop`.
