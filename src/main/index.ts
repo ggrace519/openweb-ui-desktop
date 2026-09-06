@@ -87,7 +87,12 @@ import { registerCertificatePolicy } from './tls'
 import { isPathInside } from './safe-open'
 import { linuxNeedsNoSandbox } from './linux-sandbox'
 import { errorMessage } from './utils/error-message'
-import { originOf, shouldOpenInSystemBrowser } from './webview-navigation'
+import {
+  isAccessCallbackUrl,
+  loggableUrl,
+  originOf,
+  shouldOpenInSystemBrowser
+} from './webview-navigation'
 
 import log from 'electron-log'
 log.transports.file.resolvePathFn = () => getLogFilePath('main')
@@ -1311,18 +1316,20 @@ if (!gotTheLock) {
       if (hookedGuests.has(guest) || guest.isDestroyed()) return
       hookedGuests.add(guest)
 
-      const homeOriginFor = (): string | null => {
+      const homeUrlFor = (): string | null => {
         const partition = partitionBySession.get(guest.session) ?? ''
         const prefix = 'persist:connection-'
         if (!partition.startsWith(prefix)) return null
         const id = partition.slice(prefix.length)
         if (id === 'local') {
-          const url =
-            SERVER_URL || `http://127.0.0.1:${CONFIG?.localServer?.port ?? 8080}`
-          return originOf(url)
+          return SERVER_URL || `http://127.0.0.1:${CONFIG?.localServer?.port ?? 8080}`
         }
-        const conn = CONFIG?.connections?.find((c) => c.id === id)
-        return conn?.url ? originOf(conn.url) : null
+        return CONFIG?.connections?.find((c) => c.id === id)?.url ?? null
+      }
+
+      const homeOriginFor = (): string | null => {
+        const home = homeUrlFor()
+        return home ? originOf(home) : null
       }
 
       const bounceToOs = (targetUrl: string): boolean =>
@@ -1332,26 +1339,67 @@ if (!gotTheLock) {
           homeOrigin: homeOriginFor()
         })
 
-      // Chat target=_blank → OS browser (#165). Auth window.open must load in
-      // this same guest so the Access cookie stays in persist:connection-* (#39).
+      const returnGuestHome = (reason: string): void => {
+        const home = homeUrlFor()
+        if (!home || guest.isDestroyed()) return
+        if (originOf(guest.getURL()) === originOf(home)) {
+          guest.reload()
+          return
+        }
+        log.info(`webview ${reason}; loading home ${loggableUrl(home)}`)
+        guest.loadURL(home)
+      }
+
+      // Chat target=_blank → OS browser (#165). Auth popups must share the
+      // guest session and keep the Access opener alive (#39, #44).
       guest.setWindowOpenHandler(({ url }) => {
         if (bounceToOs(url)) {
-          log.info('webview popup → OS browser:', url)
+          log.info('webview popup → OS browser:', loggableUrl(url))
           openUrl(url)
-        } else {
-          log.info('webview popup → same guest:', url)
-          guest.loadURL(url)
+          return { action: 'deny' }
         }
-        return { action: 'deny' }
+        log.info('webview popup → auth window:', loggableUrl(url))
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: {
+            width: 560,
+            height: 780,
+            autoHideMenuBar: true,
+            webPreferences: {
+              sandbox: true,
+              nodeIntegration: false,
+              contextIsolation: true,
+              session: guest.session
+            }
+          }
+        }
+      })
+
+      guest.on('did-create-window', (win) => {
+        win.on('closed', () => {
+          returnGuestHome('auth window closed')
+        })
       })
 
       guest.on('will-navigate', (details) => {
         if (details.isMainFrame === false) return
         if (bounceToOs(details.url)) {
-          log.info('webview navigate → OS browser:', details.url)
+          log.info('webview navigate → OS browser:', loggableUrl(details.url))
           details.preventDefault()
           openUrl(details.url)
         }
+      })
+
+      guest.on('did-navigate', (_event, url) => {
+        log.info('webview navigated:', loggableUrl(url))
+        if (isAccessCallbackUrl(url)) {
+          returnGuestHome('Access callback')
+        }
+      })
+
+      guest.on('did-fail-load', (_event, code, desc, url, isMainFrame) => {
+        if (!isMainFrame || code === -3) return
+        log.warn(`webview fail-load ${code} ${desc} ${loggableUrl(url)}`)
       })
 
       // ── Native right-click context menu (#161) ──────────────────
