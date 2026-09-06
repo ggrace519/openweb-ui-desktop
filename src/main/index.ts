@@ -86,6 +86,11 @@ import { registerGuestWebviewPolicy } from './guest-webview'
 import { registerCertificatePolicy } from './tls'
 import { isPathInside } from './safe-open'
 import { linuxNeedsNoSandbox } from './linux-sandbox'
+import {
+  registerAppProtocolHandler,
+  registerAppSchemePrivileges,
+  shellPageUrl
+} from './app-protocol'
 import { errorMessage } from './utils/error-message'
 import {
   isAccessCallbackUrl,
@@ -159,6 +164,9 @@ if (gpuSandboxDisabled) {
 // Prevent Chromium from permanently blocking WebGL / 3-D APIs after
 // repeated GPU process crashes within the same session.
 app.disableDomainBlockingFor3DAPIs()
+
+// Custom protocol for the packaged Svelte shell. Must run before ready.
+registerAppSchemePrivileges()
 
 // ─── State ──────────────────────────────────────────────
 
@@ -336,7 +344,7 @@ function createSpotlightWindow(): BrowserWindow {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     spotlightWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/spotlight.html`)
   } else {
-    spotlightWindow.loadFile(join(__dirname, '../renderer/spotlight.html'))
+    spotlightWindow.loadURL(shellPageUrl('spotlight.html'))
   }
 
   // Hide on blur — but only when the window was truly visible and settled.
@@ -453,7 +461,7 @@ function createVoiceInputWindow(): BrowserWindow {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     voiceInputWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/voice-input.html`)
   } else {
-    voiceInputWindow.loadFile(join(__dirname, '../renderer/voice-input.html'))
+    voiceInputWindow.loadURL(shellPageUrl('voice-input.html'))
   }
 
   voiceInputWindow.on('closed', () => {
@@ -693,7 +701,7 @@ function createMainWindow(show = true): void {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadURL(shellPageUrl('index.html'))
   }
 
   // ── Persist window bounds on geometry changes ──
@@ -1218,6 +1226,7 @@ if (!gotTheLock) {
   })
 
   app.whenReady().then(async () => {
+    registerAppProtocolHandler()
     CONFIG = await getConfig()
     loadSpotlightPosition()
     log.info(

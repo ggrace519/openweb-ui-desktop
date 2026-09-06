@@ -243,3 +243,28 @@ Integrity of the interpreter and inference binary is a software-supply-chain con
 ### Consequences
 
 A llama.cpp release with no `digest` field cannot be installed until GitHub provides one (current `b*` binary releases do). Bumping the Python standalone date requires updating the pin table. `releases/latest` for llama.cpp currently resolves to `v0.4.0`, which has no binary assets — that is a separate bug from checksums.
+
+---
+
+## ADR-0010: Production shell is served on app://, not file://
+
+**Date:** 2026-09-06
+**Status:** Proposed
+**Phase:** Hardening
+**Deciders:** Greg
+
+### Context
+
+Issue #37. Packaged windows `loadFile()` the Svelte shell (`file://`). Electron fuses already set `grantFileProtocolExtraPrivileges: false`. Electron still recommends a custom protocol: `file://` is a unique origin with historically extra privileges; a confined `protocol.handle` can only serve `out/renderer`.
+
+### Decision
+
+Scheme `app`, host `renderer`. Privileges: `standard`, `secure`, `supportFetchAPI`, `stream`. No `bypassCSP`, no `corsEnabled`, no service workers. `protocol.handle` on defaultSession only. Production loadURL `app://renderer/{index,spotlight,voice-input}.html`. Dev still uses `ELECTRON_RENDERER_URL`. Webview guests stay http(s) on `persist:connection-*` and do not receive the handler. Do not register `app` as an OS protocol handler.
+
+### Rationale
+
+Named host `renderer` is allowlisted so `app://index.html` cannot be mis-parsed as a host. Confining the handler to defaultSession means a remote Open WebUI guest cannot read shell files even if it requests `app:`.
+
+### Consequences
+
+Shell `localStorage` origin changes once (`file://` → `app://renderer`); i18n locale cache resets unless already in config. Hero `<video>` depends on `stream: true`. Preview (`npm start`) and `build:unpack` are the proof paths, not `npm run dev`.

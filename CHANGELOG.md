@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Packaged shell loads over `app://renderer/`, not `file://`.** Main, Spotlight, and voice-input production windows use a confined `protocol.handle`. Dev (`ELECTRON_RENDERER_URL`) is unchanged. Guest webviews stay on `http(s)`.
+
 ### Fixed
 
 - **Hugging Face GGUF downloads are SHA-256 verified.** The Hub `?blobs=true` LFS digest is required before download; the file is hashed while streaming and a cached GGUF is re-hashed before use. A missing digest or mismatch fails closed (no unhashed weights handed to llama-server).

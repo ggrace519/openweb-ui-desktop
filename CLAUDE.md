@@ -40,7 +40,7 @@ Guest Open WebUI (local or remote) talks to the desktop through `content-preload
 
 On Linux, Chromium `--no-sandbox` is only for AppImage/snap/Flatpak, `ELECTRON_DISABLE_SANDBOX=1`, and unpackaged dev. Native `.deb` / `.rpm` keep the renderer sandbox.
 
-Packaged builds flip Electron fuses in `electron-builder.yml` (`runAsNode` off, asar integrity, no `NODE_OPTIONS` / `--inspect` / `file:` extra privileges).
+Packaged builds flip Electron fuses in `electron-builder.yml` (`runAsNode` off, asar integrity, no `NODE_OPTIONS` / `--inspect` / `file:` extra privileges). Production shell windows load `app://renderer/{index,spotlight,voice-input}.html`, not `file://`. Dev still uses `ELECTRON_RENDERER_URL`.
 
 The `release` workflow fails closed if macOS codesign/notarization or Windows Azure Trusted Signing fails. It does not publish unsigned macOS/Windows fallbacks.
 
