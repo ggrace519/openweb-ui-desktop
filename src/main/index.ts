@@ -1301,6 +1301,110 @@ if (!gotTheLock) {
     // so that external links open in the user's default browser instead
     // of navigating the webview or spawning a new Electron window (#165).
     const partitionBySession = new WeakMap<Electron.Session, string>()
+    const hookedGuests = new WeakSet<Electron.WebContents>()
+
+    const hookGuestNavigation = (guest: Electron.WebContents): void => {
+      if (hookedGuests.has(guest) || guest.isDestroyed()) return
+      hookedGuests.add(guest)
+
+      const homeOriginFor = (): string | null => {
+        const partition = partitionBySession.get(guest.session) ?? ''
+        const prefix = 'persist:connection-'
+        if (!partition.startsWith(prefix)) return null
+        const id = partition.slice(prefix.length)
+        if (id === 'local') {
+          const url =
+            SERVER_URL || `http://127.0.0.1:${CONFIG?.localServer?.port ?? 8080}`
+          return originOf(url)
+        }
+        const conn = CONFIG?.connections?.find((c) => c.id === id)
+        return conn?.url ? originOf(conn.url) : null
+      }
+
+      const bounceToOs = (targetUrl: string): boolean =>
+        shouldOpenInSystemBrowser({
+          currentUrl: guest.getURL(),
+          targetUrl,
+          homeOrigin: homeOriginFor()
+        })
+
+      // Chat target=_blank → OS browser (#165). Auth window.open must load in
+      // this same guest so the Access cookie stays in persist:connection-* (#39).
+      guest.setWindowOpenHandler(({ url }) => {
+        if (bounceToOs(url)) {
+          log.info('webview popup → OS browser:', url)
+          openUrl(url)
+        } else {
+          log.info('webview popup → same guest:', url)
+          guest.loadURL(url)
+        }
+        return { action: 'deny' }
+      })
+
+      guest.on('will-navigate', (details) => {
+        if (details.isMainFrame === false) return
+        if (bounceToOs(details.url)) {
+          log.info('webview navigate → OS browser:', details.url)
+          details.preventDefault()
+          openUrl(details.url)
+        }
+      })
+
+      // ── Native right-click context menu (#161) ──────────────────
+      // Electron <webview> guests don't show a context menu by default,
+      // which blocks right-click → Paste / Autofill / password-manager
+      // integration on login pages.  Build a native menu with standard
+      // editing actions, spell-check suggestions, and link handling.
+      guest.on('context-menu', (_event, params) => {
+        const menuItems: Electron.MenuItemConstructorOptions[] = []
+
+        if (params.misspelledWord && params.dictionarySuggestions?.length) {
+          for (const suggestion of params.dictionarySuggestions) {
+            menuItems.push({
+              label: suggestion,
+              click: () => guest.replaceMisspelling(suggestion)
+            })
+          }
+          menuItems.push({ type: 'separator' })
+        }
+
+        if (params.linkURL) {
+          const external = bounceToOs(params.linkURL)
+          menuItems.push({
+            label: external ? 'Open Link in Browser' : 'Open Link',
+            click: () => {
+              if (external) openUrl(params.linkURL)
+              else guest.loadURL(params.linkURL)
+            }
+          })
+          menuItems.push({
+            label: 'Copy Link',
+            click: () => clipboard.writeText(params.linkURL)
+          })
+          menuItems.push({ type: 'separator' })
+        }
+
+        if (params.isEditable) {
+          menuItems.push(
+            { label: 'Undo', role: 'undo', enabled: params.editFlags.canUndo },
+            { label: 'Redo', role: 'redo', enabled: params.editFlags.canRedo },
+            { type: 'separator' },
+            { label: 'Cut', role: 'cut', enabled: params.editFlags.canCut },
+            { label: 'Copy', role: 'copy', enabled: params.editFlags.canCopy },
+            { label: 'Paste', role: 'paste', enabled: params.editFlags.canPaste },
+            { label: 'Select All', role: 'selectAll', enabled: params.editFlags.canSelectAll }
+          )
+        } else if (params.selectionText) {
+          menuItems.push(
+            { label: 'Copy', role: 'copy', enabled: params.editFlags.canCopy }
+          )
+        }
+
+        if (menuItems.length > 0) {
+          Menu.buildFromTemplate(menuItems).popup()
+        }
+      })
+    }
 
     app.on('web-contents-created', (_event, contents) => {
       contents.on('render-process-gone', (_e, details) => {
@@ -1318,115 +1422,13 @@ if (!gotTheLock) {
         }
       })
 
+      // Guest WebContents: hook both creation and attach. Attach is the
+      // reliable Electron event; type==='webview' can race.
+      contents.on('did-attach-webview', (_e, guest) => {
+        hookGuestNavigation(guest)
+      })
       if (contents.getType() === 'webview') {
-        // Chat links leave the Open WebUI origin in the OS browser (#165).
-        // Cloudflare Access / OIDC must stay in this partition (#39).
-        const homeOriginFor = (): string | null => {
-          const partition = partitionBySession.get(contents.session) ?? ''
-          const prefix = 'persist:connection-'
-          if (!partition.startsWith(prefix)) return null
-          const id = partition.slice(prefix.length)
-          if (id === 'local') {
-            const url =
-              SERVER_URL || `http://127.0.0.1:${CONFIG?.localServer?.port ?? 8080}`
-            return originOf(url)
-          }
-          const conn = CONFIG?.connections?.find((c) => c.id === id)
-          return conn?.url ? originOf(conn.url) : null
-        }
-
-        contents.setWindowOpenHandler(({ url }) => {
-          if (
-            shouldOpenInSystemBrowser({
-              currentUrl: contents.getURL(),
-              targetUrl: url,
-              homeOrigin: homeOriginFor()
-            })
-          ) {
-            openUrl(url)
-            return { action: 'deny' }
-          }
-          return {
-            action: 'allow',
-            overrideBrowserWindowOptions: {
-              autoHideMenuBar: true,
-              webPreferences: {
-                sandbox: true,
-                nodeIntegration: false,
-                contextIsolation: true
-              }
-            }
-          }
-        })
-
-        contents.on('will-navigate', (details) => {
-          if (details.isMainFrame === false) return
-          if (
-            shouldOpenInSystemBrowser({
-              currentUrl: contents.getURL(),
-              targetUrl: details.url,
-              homeOrigin: homeOriginFor()
-            })
-          ) {
-            details.preventDefault()
-            openUrl(details.url)
-          }
-        })
-
-        // ── Native right-click context menu (#161) ──────────────────
-        // Electron <webview> guests don't show a context menu by default,
-        // which blocks right-click → Paste / Autofill / password-manager
-        // integration on login pages.  Build a native menu with standard
-        // editing actions, spell-check suggestions, and link handling.
-        contents.on('context-menu', (_event, params) => {
-          const menuItems: Electron.MenuItemConstructorOptions[] = []
-
-          // Spell-check suggestions (if any)
-          if (params.misspelledWord && params.dictionarySuggestions?.length) {
-            for (const suggestion of params.dictionarySuggestions) {
-              menuItems.push({
-                label: suggestion,
-                click: () => contents.replaceMisspelling(suggestion)
-              })
-            }
-            menuItems.push({ type: 'separator' })
-          }
-
-          // Link handling
-          if (params.linkURL) {
-            menuItems.push({
-              label: 'Open Link in Browser',
-              click: () => openUrl(params.linkURL)
-            })
-            menuItems.push({
-              label: 'Copy Link',
-              click: () => clipboard.writeText(params.linkURL)
-            })
-            menuItems.push({ type: 'separator' })
-          }
-
-          // Editable field actions (input, textarea, contenteditable)
-          if (params.isEditable) {
-            menuItems.push(
-              { label: 'Undo', role: 'undo', enabled: params.editFlags.canUndo },
-              { label: 'Redo', role: 'redo', enabled: params.editFlags.canRedo },
-              { type: 'separator' },
-              { label: 'Cut', role: 'cut', enabled: params.editFlags.canCut },
-              { label: 'Copy', role: 'copy', enabled: params.editFlags.canCopy },
-              { label: 'Paste', role: 'paste', enabled: params.editFlags.canPaste },
-              { label: 'Select All', role: 'selectAll', enabled: params.editFlags.canSelectAll }
-            )
-          } else if (params.selectionText) {
-            // Non-editable text selection
-            menuItems.push(
-              { label: 'Copy', role: 'copy', enabled: params.editFlags.canCopy }
-            )
-          }
-
-          if (menuItems.length > 0) {
-            Menu.buildFromTemplate(menuItems).popup()
-          }
-        })
+        hookGuestNavigation(contents)
       }
     })
 
