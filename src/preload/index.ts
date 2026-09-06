@@ -1,5 +1,4 @@
 import { ipcRenderer, contextBridge } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
 
 // ─── PTY MessagePort ────────────────────────────────────
 // MessagePorts stay in the preload (cannot cross contextBridge).
@@ -191,14 +190,11 @@ const api = {
 
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('electronAPI', api)
   } catch (error) {
     console.error(error)
   }
 } else {
-  // @ts-ignore
-  window.electron = electronAPI
-  // @ts-ignore
+  // @ts-expect-error non-isolated fallback
   window.electronAPI = api
 }
