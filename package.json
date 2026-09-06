@@ -9,6 +9,7 @@
   "scripts": {
     "format": "prettier --plugin prettier-plugin-svelte --write .",
     "lint": "eslint --cache .",
+    "lint:main": "eslint src/main src/preload --max-warnings 0",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "svelte-check": "svelte-check --tsconfig ./tsconfig.json",
     "typecheck": "npm run typecheck:node && npm run svelte-check",

@@ -20,13 +20,13 @@ GitHub Issues are the tracker (enabled 2026-09-06). For bugs — especially secu
 ```bash
 npm install
 npm run dev
-npm run lint
+npm run lint:main
 npm run typecheck
 npm test
 npm run build
 ```
 
-`npm test` runs `node:test` on `test/*.test.ts` (main-process security helpers; no Electron window). `npm run typecheck` runs `tsc` for the main/preload graph (`tsconfig.node.json`) plus `svelte-check`. Main-process modules are included in `typecheck:node` (no `@ts-nocheck`).
+`npm test` runs `node:test` on `test/*.test.ts` (main-process security helpers; no Electron window). `npm run lint:main` is the CI eslint gate (`src/main` + `src/preload` at zero findings). Full-repo `npm run lint` is not a gate yet (renderer still has hundreds of pre-existing hits). `npm run typecheck` runs `tsc` for the main/preload graph (`tsconfig.node.json`) plus `svelte-check`. Main-process modules are included in `typecheck:node` (no `@ts-nocheck`).
 
 ## Layout
 
