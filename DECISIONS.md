@@ -115,7 +115,32 @@ Land in this order. Each is its own branch. Later items may stack if they touch 
 | 5 | `fix/hf-path-traversal` | Allowlist HF repo/filename; confine to models dir |
 | 6 | `fix/service-lock-quit` | ADR-0004 |
 
-Follow-ons (not in the first wave): fail CI if codesign fails, drop `@ts-nocheck`, Electron fuses. Electron is pinned to 39.8.10 (`chore/bump-electron`). PR typecheck CI is on `develop`. Python / llama.cpp downloads are checksum-verified (`fix/artifact-checksums`). Linux `--no-sandbox` is scoped to AppImage/snap/Flatpak and unpackaged runs (`fix/linux-sandbox-scope`).
+Follow-ons (not in the first wave): fail CI if codesign fails, drop `@ts-nocheck`. Electron is pinned to 39.8.10 (`chore/bump-electron`). PR typecheck CI is on `develop`. Python / llama.cpp downloads are checksum-verified (`fix/artifact-checksums`). Linux `--no-sandbox` is scoped to AppImage/snap/Flatpak and unpackaged runs (`fix/linux-sandbox-scope`). Electron fuses are set in `electron-builder.yml` (`fix/electron-fuses`).
+
+---
+
+## ADR-0007: Packaged builds flip Electron fuses
+
+**Date:** 2026-09-05
+**Status:** Proposed
+**Phase:** Hardening
+**Deciders:** Greg
+
+### Context
+
+Default Electron fuses allow `ELECTRON_RUN_AS_NODE=1` to turn the app binary into a generic Node, honor `NODE_OPTIONS` / `--inspect`, skip ASAR integrity checks, and grant `file:` extra privileges. A renderer or env-var attacker can use those to escape the packaged app.
+
+### Decision
+
+Set `electronFuses` in `electron-builder.yml`: `runAsNode` false, `enableNodeOptionsEnvironmentVariable` false, `enableNodeCliInspectArguments` false, `enableEmbeddedAsarIntegrityValidation` true, `onlyLoadAppFromAsar` true, `grantFileProtocolExtraPrivileges` false. Keep `asarUnpack` for `node-pty` and `resources/**`.
+
+### Rationale
+
+The app does not use `process.fork` (which needs `ELECTRON_RUN_AS_NODE`). Integrity of `app.asar` plus "only load from asar" is the documented pairing. Unpacked native addons still load from `app.asar.unpacked`.
+
+### Consequences
+
+`npm run dev` is unaffected (fuses apply at pack time). ASAR integrity validation is macOS and Windows only in current Electron; Linux still gets the other fuses. Debugging a packaged build with `--inspect` or `NODE_OPTIONS` will not work — that is the point.
 
 ---
 

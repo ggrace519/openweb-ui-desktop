@@ -38,6 +38,8 @@ Guest Open WebUI (local or remote) talks to the desktop through `content-preload
 
 On Linux, Chromium `--no-sandbox` is only for AppImage/snap/Flatpak, `ELECTRON_DISABLE_SANDBOX=1`, and unpackaged dev. Native `.deb` / `.rpm` keep the renderer sandbox.
 
+Packaged builds flip Electron fuses in `electron-builder.yml` (`runAsNode` off, asar integrity, no `NODE_OPTIONS` / `--inspect` / `file:` extra privileges).
+
 ## Hardening series
 
 See `DECISIONS.md`. Land each fix on its own branch/PR against `develop` so they stay cherry-pickable for upstream.
