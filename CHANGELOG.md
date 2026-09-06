@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **PTY resize after process exit no longer kills the app.** On Windows, opening the console tab while the embedded server restarts threw `Cannot resize a pty that has already exited` as an uncaught main-process exception. Resize and write are now ignored if the PTY is already dead.
 - **Hugging Face GGUF downloads are SHA-256 verified.** The Hub `?blobs=true` LFS digest is required before download; the file is hashed while streaming and a cached GGUF is re-hashed before use. A missing digest or mismatch fails closed (no unhashed weights handed to llama-server).
 - **Open WebUI guest no longer dies on `appData is not defined`.** `app:data` now returns `null` instead of `{}`. Open WebUI calls `appData.set(data)` without importing the store when that payload is truthy, which left a blank webview after login.
 - **Tray Quit actually exits.** Quit called `stopServerHandler` then `app.quit()`, `sendToRenderer` threw `Object has been destroyed` on a dead window, and `will-quit`'s `preventDefault` + `app.quit()` never finished. Quit now sets the flag and leaves cleanup to `will-quit`, which ends with `app.exit(0)` and an 8s timeout.
