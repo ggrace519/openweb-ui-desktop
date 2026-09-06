@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Child processes are stopped on quit.** `before-quit` was `async` without `preventDefault`, so Electron did not wait for llama.cpp / Open Terminal / Open WebUI to die. Quit now uses `will-quit` and waits. `startLlamaCpp` / `startOpenTerminal` also no longer release `ServiceLock` by calling `stop()` first, which had allowed overlapping starts.
 - **Hugging Face model paths are confined to the cache directory.** Repo ids and filenames are allowlisted and resolved under the models dir before download or delete, so a `../` filename can no longer write outside the cache.
 - **External URL and path opens are allowlisted.** `shell.openExternal` now accepts only `http:`, `https:`, and `mailto:`. `open:path` only opens folders under the app's userData or install directory. Untrusted `file:` / custom-protocol URLs from a webview can no longer be handed to the OS.
 - **TLS verification restored.** The app no longer trusts every certificate on every Chromium session. Self-signed Open WebUI servers (#108) are still allowed, but only for origins the user has added as connections (plus localhost). Auto-update, GitHub, and Hugging Face use real PKI again.
@@ -17,8 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Infrastructure
 
-- **PR typecheck on `develop`.** Pull requests and pushes to `develop` now run `npm run typecheck`. Full-repo `eslint` is not a gate yet — it currently reports hundreds of pre-existing findings on `develop`.
-## [0.0.20] - 2026-05-07
+- **PR typecheck on `develop`.** Pull requests and pushes to `develop` now run `npm run typecheck`. Full-repo `eslint` is not a gate yet — it currently reports hundreds of pre-existing findings on `develop`.## [0.0.20] - 2026-05-07
 
 ### Fixed
 

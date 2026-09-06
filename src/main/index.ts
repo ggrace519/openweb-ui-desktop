@@ -157,6 +157,7 @@ let spotlightWindow: BrowserWindow | null = null
 let voiceInputWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let isQuiting = false
+let quittingCleanedUp = false
 
 let CONFIG: AppConfig | null = null
 let SERVER_URL: string | null = null
@@ -2212,23 +2213,34 @@ if (!gotTheLock) {
     }
   })
 
-  app.on('before-quit', async () => {
+  app.on('will-quit', (event) => {
+    if (quittingCleanedUp) return
+    event.preventDefault()
     isQuiting = true
-    await stopLlamaCpp()
-    await stopOpenTerminal()
-    await stopServerHandler()
-    globalShortcut.unregisterAll()
-    mainWindow = null
-    contentWindow = null
-    if (spotlightWindow && !spotlightWindow.isDestroyed()) {
-      spotlightWindow.destroy()
-    }
-    spotlightWindow = null
-    if (voiceInputWindow && !voiceInputWindow.isDestroyed()) {
-      voiceInputWindow.destroy()
-    }
-    voiceInputWindow = null
-    tray?.destroy()
-    tray = null
+    void (async () => {
+      try {
+        await stopLlamaCpp()
+        await stopOpenTerminal()
+        await stopServerHandler()
+      } catch (error) {
+        log.warn('Error while stopping child processes on quit:', error)
+      } finally {
+        globalShortcut.unregisterAll()
+        mainWindow = null
+        contentWindow = null
+        if (spotlightWindow && !spotlightWindow.isDestroyed()) {
+          spotlightWindow.destroy()
+        }
+        spotlightWindow = null
+        if (voiceInputWindow && !voiceInputWindow.isDestroyed()) {
+          voiceInputWindow.destroy()
+        }
+        voiceInputWindow = null
+        tray?.destroy()
+        tray = null
+        quittingCleanedUp = true
+        app.quit()
+      }
+    })()
   })
 }
