@@ -1200,7 +1200,9 @@ if (!gotTheLock) {
   app.whenReady().then(async () => {
     CONFIG = await getConfig()
     loadSpotlightPosition()
-    log.info('Config:', CONFIG)
+    log.info(
+      `Config loaded (connections=${CONFIG.connections?.length ?? 0}, default=${CONFIG.defaultConnectionId ?? 'none'})`
+    )
 
     app.name = 'Open WebUI'
     if (process.platform === 'darwin' && app.dock) {
