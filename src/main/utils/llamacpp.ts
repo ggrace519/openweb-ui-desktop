@@ -17,6 +17,11 @@ import {
 import { parseGithubDigest, fileMatchesSha256, assertSha256 } from './artifact-integrity'
 import { sanitizeChildEnv, sanitizeLlamaExtraArgs } from './child-env'
 import { errorMessage } from './error-message'
+import {
+  pickLatestLlamaCppRelease,
+  type GithubRelease,
+  type GithubReleaseAsset
+} from './llama-release'
 
 import { getModelsDir } from './huggingface'
 import { ServiceLock, isProcessAlive } from './service-lock'
@@ -73,10 +78,32 @@ export const getLlamaCppLog = (): string[] => logBuffer
 
 // ─── Asset Resolution ───────────────────────────────────
 
-interface ReleaseAsset {
-  name: string
-  browser_download_url: string
-  digest?: string
+type ReleaseAsset = GithubReleaseAsset
+
+const LLAMA_RELEASES_API = 'https://api.github.com/repos/ggml-org/llama.cpp/releases'
+
+async function githubJson(url: string, timeoutMs = 10000): Promise<unknown> {
+  const response = await fetch(url, {
+    headers: { Accept: 'application/vnd.github.v3+json' },
+    signal: AbortSignal.timeout(timeoutMs)
+  })
+  if (!response.ok) {
+    throw new Error(`GitHub API returned ${response.status}: ${response.statusText}`)
+  }
+  return response.json()
+}
+
+async function fetchLlamaCppRelease(version: string): Promise<GithubRelease> {
+  if (version !== 'latest') {
+    return (await githubJson(
+      `${LLAMA_RELEASES_API}/tags/${encodeURIComponent(version)}`
+    )) as GithubRelease
+  }
+  const releases = (await githubJson(`${LLAMA_RELEASES_API}?per_page=30`)) as GithubRelease[]
+  if (!Array.isArray(releases)) {
+    throw new Error('GitHub releases response was not a list')
+  }
+  return pickLatestLlamaCppRelease(releases)
 }
 
 /**
@@ -258,21 +285,9 @@ export const setupLlamaCpp = async (
   }
 
   onStatus?.('Fetching release info…')
-  const apiUrl =
-    version === 'latest'
-      ? 'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest'
-      : `https://api.github.com/repos/ggml-org/llama.cpp/releases/tags/${version}`
-
-  let releaseData: any
+  let releaseData: GithubRelease
   try {
-    const response = await fetch(apiUrl, {
-      headers: { Accept: 'application/vnd.github.v3+json' },
-      signal: AbortSignal.timeout(10000)
-    })
-    if (!response.ok) {
-      throw new Error(`GitHub API returned ${response.status}: ${response.statusText}`)
-    }
-    releaseData = await response.json()
+    releaseData = await fetchLlamaCppRelease(version)
   } catch (error) {
     // Network unavailable — fall back to cached binary if we found one
     if (binaryPath) {
@@ -389,16 +404,7 @@ export const checkLlamaCppUpdate = async (): Promise<{ currentVersion: string | 
   const currentInfo = getLlamaCppInfo()
 
   try {
-    const response = await fetch('https://api.github.com/repos/ggml-org/llama.cpp/releases/latest', {
-      headers: { Accept: 'application/vnd.github.v3+json' },
-      signal: AbortSignal.timeout(5000)
-    })
-    
-    if (!response.ok) {
-      throw new Error(`GitHub API returned ${response.status}: ${response.statusText}`)
-    }
-    
-    const releaseData = await response.json()
+    const releaseData = await fetchLlamaCppRelease('latest')
     const latestVersion = releaseData.tag_name
     const currentVersion = currentInfo.version
     
@@ -429,19 +435,9 @@ export const updateLlamaCpp = async (
   onStatus?.('Checking for updates…')
   let releaseTag: string
   try {
-    const response = await fetch(
-      'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest',
-      {
-        headers: { Accept: 'application/vnd.github.v3+json' },
-        signal: AbortSignal.timeout(10000)
-      }
-    )
-    if (!response.ok) {
-      throw new Error(`GitHub API returned ${response.status}: ${response.statusText}`)
-    }
-    const data = await response.json()
+    const data = await fetchLlamaCppRelease('latest')
     releaseTag = data.tag_name
-    log.info(`Updating llama.cpp from GitHub latest: ${releaseTag}`)
+    log.info(`Updating llama.cpp from GitHub latest with binaries: ${releaseTag}`)
   } catch (error) {
     throw new Error(
       `Cannot update llama.cpp: unable to reach GitHub. ` +
