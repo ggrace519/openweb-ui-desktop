@@ -34,7 +34,7 @@ There is no test script yet. `npm run typecheck` runs `tsc` for the main/preload
 | `src/preload/` | Per-window bridges (`index`, `content-preload`, `spotlight`, `voice-input`) |
 | `src/renderer/` | Svelte 5 UI; `<webview>` guests in `Main/Connections/Content.svelte` |
 
-Guest Open WebUI (local or remote) talks to the desktop through `content-preload.ts` only. It must never reach `window.electronAPI` on the shell renderer.
+Guest Open WebUI (local or remote) talks to the desktop through `content-preload.ts` only. It must never reach `window.electronAPI` on the shell renderer. The shell renderer is not given `@electron-toolkit/preload`'s `window.electron` (that object includes `ipcRenderer`).
 
 On Linux, Chromium `--no-sandbox` is only for AppImage/snap/Flatpak, `ELECTRON_DISABLE_SANDBOX=1`, and unpackaged dev. Native `.deb` / `.rpm` keep the renderer sandbox.
 
