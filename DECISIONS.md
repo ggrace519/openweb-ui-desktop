@@ -115,7 +115,32 @@ Land in this order. Each is its own branch. Later items may stack if they touch 
 | 5 | `fix/hf-path-traversal` | Allowlist HF repo/filename; confine to models dir |
 | 6 | `fix/service-lock-quit` | ADR-0004 |
 
-Follow-ons (not in the first wave): fail CI if codesign fails, drop `@ts-nocheck`. Electron is pinned to 39.8.10 (`chore/bump-electron`). PR typecheck CI is on `develop`. Python / llama.cpp downloads are checksum-verified (`fix/artifact-checksums`). Linux `--no-sandbox` is scoped to AppImage/snap/Flatpak and unpackaged runs (`fix/linux-sandbox-scope`). Electron fuses are set in `electron-builder.yml` (`fix/electron-fuses`).
+Follow-ons (not in the first wave): drop `@ts-nocheck`. Electron is pinned to 39.8.10 (`chore/bump-electron`). PR typecheck CI is on `develop`. Python / llama.cpp downloads are checksum-verified (`fix/artifact-checksums`). Linux `--no-sandbox` is scoped to AppImage/snap/Flatpak and unpackaged runs (`fix/linux-sandbox-scope`). Electron fuses are set in `electron-builder.yml` (`fix/electron-fuses`). macOS/Windows releases fail closed on signing (`fix/release-codesign-required`).
+
+---
+
+## ADR-0008: Signed macOS and Windows artifacts or no release
+
+**Date:** 2026-09-05
+**Status:** Proposed
+**Phase:** Hardening
+**Deciders:** Greg
+
+### Context
+
+`release.yml` treated codesign as best-effort: missing Apple certs, notarization failure, or Azure Trusted Signing failure still published unsigned installers via `continue-on-error` fallbacks. Auto-update manifests then had to be patched because signed and unsigned hashes differed.
+
+### Decision
+
+macOS jobs require the signing certificate and notarize; Windows jobs disable CSC auto-discovery and require Azure Trusted Signing. Either step failing fails the matrix job (and therefore the GitHub Release). Linux remains unsigned, which is normal for `.deb` / AppImage.
+
+### Rationale
+
+An unsigned `.dmg` / `.exe` is not the product. Publishing it teaches users to bypass Gatekeeper/SmartScreen and makes a supply-chain swap indistinguishable from "the fallback build".
+
+### Consequences
+
+A `release` push without Apple/Azure secrets will fail macOS and Windows (Linux may still package; the release job still requires `package` to succeed). That is the intended gate. Local `electron-builder` without secrets is unchanged.
 
 ---
 
