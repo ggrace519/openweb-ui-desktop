@@ -13,6 +13,8 @@ Two long-lived branches:
 
 Never commit directly to `main` or `develop`. Branch from `develop` as `<type>/<kebab-summary>` (e.g. `fix/webview-guest-ipc-allowlist`). Feature PRs target `develop` (the GitHub default). Promotion `develop` → `main` is a separate PR and is Greg's call.
 
+GitHub Issues are the tracker (enabled 2026-09-06). For bugs — especially security or anything data-affecting — open a tracking issue (symptom, root cause, impact, fix) and close it from the fix PR with `Closes #N`. Do not fix those silently.
+
 ## Commands
 
 ```bash
