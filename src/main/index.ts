@@ -318,7 +318,9 @@ function createSpotlightWindow(): BrowserWindow {
     icon: path.join(__dirname, 'assets/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/spotlight-preload.js'),
-      sandbox: false,
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
       webviewTag: false
     }
   })
@@ -427,7 +429,9 @@ function createVoiceInputWindow(): BrowserWindow {
     icon: path.join(__dirname, 'assets/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/voice-input-preload.js'),
-      sandbox: false,
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
       webviewTag: false,
       autoplayPolicy: 'no-user-gesture-required'
     }
@@ -644,7 +648,9 @@ function createMainWindow(show = true): void {
     ...(process.platform !== 'darwin' ? { titleBarOverlay: true } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
       webviewTag: true
     }
   }
