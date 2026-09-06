@@ -1,4 +1,3 @@
-// @ts-nocheck
 
 /**
  * Reusable Hugging Face utility module.
@@ -12,7 +11,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import log from 'electron-log'
 
-import { getInstallDir, downloadFileWithProgress } from './index'
+import { getInstallDir } from './index'
 import { confinedModelPath, huggingfaceDownloadUrl, huggingfaceRepoApiUrl } from './hf-paths'
 
 // ─── Types ──────────────────────────────────────────────
@@ -228,7 +227,10 @@ export const downloadModel = async (
     throw err
   } finally {
     writeStream.end()
-    await new Promise((resolve) => writeStream.on('finish', resolve))
+    await new Promise<void>((resolve, reject) => {
+      writeStream.on('finish', resolve)
+      writeStream.on('error', reject)
+    })
   }
 
   // Rename tmp to final

@@ -1,4 +1,3 @@
-// @ts-nocheck
 
 /**
  * ServiceLock — reusable singleton lock for managed child processes.

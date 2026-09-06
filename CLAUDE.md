@@ -23,7 +23,7 @@ npm run typecheck
 npm run build
 ```
 
-There is no test script yet. `npm run typecheck` runs `tsc` for the main/preload graph (`tsconfig.node.json`) plus `svelte-check`. Main-process files currently start with `// @ts-nocheck`, so `typecheck:node` does not actually typecheck the process manager — do not treat a green typecheck as coverage of `src/main/`.
+There is no test script yet. `npm run typecheck` runs `tsc` for the main/preload graph (`tsconfig.node.json`) plus `svelte-check`. Main-process modules are included in `typecheck:node` (no `@ts-nocheck`).
 
 ## Layout
 

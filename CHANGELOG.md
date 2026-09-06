@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Infrastructure
 
+- **Main-process TypeScript is actually typechecked.** Removed `// @ts-nocheck` from `src/main/` so `npm run typecheck` covers the process manager, not only preload.
 - **macOS and Windows releases no longer ship unsigned.** The release workflow fails if Apple codesign/notarization or Azure Trusted Signing fails, instead of publishing an unsigned fallback. Linux packages are unchanged.
 - **Electron fuses flipped at pack time.** Packaged builds disable `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS`, and `--inspect`, validate `app.asar` integrity (macOS/Windows), load app code only from the asar, and do not grant `file:` extra privileges. Native modules still unpack (`node-pty`).
 - **Electron pinned to 39.8.10.** The lockfile was on 39.8.2 and `package.json` allowed `^39.2.6`, both below the GHSA-h7rp-cf8h-j98x / CVE-2026-70601 fix (39.8.9). 39.8.10 is the current 39.x patch line (also includes later Chromium backports). Exact pin so installs cannot slide back.
