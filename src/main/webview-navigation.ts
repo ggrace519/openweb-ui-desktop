@@ -29,7 +29,14 @@ export function isLikelyAuthUrl(url: string): boolean {
     const host = parsed.hostname.toLowerCase()
     if (AUTH_HOSTS.has(host)) return true
     if (AUTH_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix))) return true
-    return AUTH_PATH.test(parsed.pathname)
+    if (host === 'github.com' && parsed.pathname.toLowerCase().startsWith('/login')) return true
+    if (AUTH_PATH.test(parsed.pathname)) return true
+    const query = parsed.searchParams
+    if (query.has('client_id') && (query.has('redirect_uri') || query.has('response_type'))) {
+      return true
+    }
+    if (query.has('SAMLRequest') || query.has('SAMLResponse')) return true
+    return false
   } catch {
     return false
   }
