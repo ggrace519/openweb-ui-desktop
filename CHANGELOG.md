@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Tray Quit actually exits.** Quit called `stopServerHandler` then `app.quit()`, `sendToRenderer` threw `Object has been destroyed` on a dead window, and `will-quit`'s `preventDefault` + `app.quit()` never finished. Quit now sets the flag and leaves cleanup to `will-quit`, which ends with `app.exit(0)` and an 8s timeout.
 - **Cloudflare Access / SSO login stays in the app.** Guest webviews sent every cross-origin navigation to the system browser so chat links would not leave Open WebUI (#165). That also ejected Access and IdP logins, so the session cookie never landed in the webview. SSO navigations (including `window.open` / `target="_blank"` IdP buttons) now load in the same webview partition; chat links still open externally.
 - **llama.cpp "latest" no longer tracks an empty GitHub release.** `/releases/latest` is currently `v0.4.0` with no binaries; the app now picks the newest GitHub release that actually has hashed `*-bin-*` assets (the `b*` builds).
 - **Shell BrowserWindows run sandboxed.** The main, Spotlight, and voice-input windows now use `sandbox: true` with context isolation and no Node in the renderer. Preloads still talk over `ipcRenderer` / MessagePort. Guest `<webview>` policy is unchanged.
