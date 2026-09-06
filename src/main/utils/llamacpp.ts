@@ -15,6 +15,7 @@ import {
   portInUse,
   downloadFileWithProgress
 } from './index'
+import { parseGithubDigest, fileMatchesSha256, assertSha256 } from './artifact-integrity'
 
 import { getModelsDir } from './huggingface'
 import { ServiceLock, isProcessAlive } from './service-lock'
@@ -74,6 +75,7 @@ export const getLlamaCppLog = (): string[] => logBuffer
 interface ReleaseAsset {
   name: string
   browser_download_url: string
+  digest?: string
 }
 
 /**
@@ -308,26 +310,46 @@ export const setupLlamaCpp = async (
     )
   }
 
-  log.info(`Downloading asset: ${asset.name}`)
+  const sha256 = parseGithubDigest(asset.digest)
+  log.info(`Downloading asset: ${asset.name} (sha256 ${sha256})`)
   onStatus?.(`Downloading ${asset.name}…`)
 
   const downloadPath = path.join(versionDir, asset.name)
-  if (!fs.existsSync(downloadPath)) {
-    await downloadFileWithProgress(asset.browser_download_url, downloadPath, (progress) => {
-      onStatus?.(`Downloading… ${progress.toFixed(0)}%`)
-    })
+  if (!fs.existsSync(downloadPath) || !fileMatchesSha256(downloadPath, sha256)) {
+    if (fs.existsSync(downloadPath)) {
+      log.warn(`Cached llama.cpp archive failed checksum; re-downloading: ${downloadPath}`)
+      try {
+        fs.unlinkSync(downloadPath)
+      } catch {}
+    }
+    await downloadFileWithProgress(
+      asset.browser_download_url,
+      downloadPath,
+      (progress) => {
+        onStatus?.(`Downloading… ${progress.toFixed(0)}%`)
+      },
+      sha256
+    )
   }
 
+  assertSha256(downloadPath, sha256)
   onStatus?.('Extracting…')
   log.info(`Extracting ${downloadPath} to ${versionDir}`)
 
   if (isZip) {
     try {
       if (process.platform === 'win32') {
-        execFileSync('powershell', [
-          '-Command',
-          `Expand-Archive -Path "${downloadPath}" -DestinationPath "${versionDir}" -Force`
-        ])
+        execFileSync(
+          'powershell',
+          ['-NoProfile', '-Command', 'Expand-Archive -LiteralPath $env:OWUI_ZIP -DestinationPath $env:OWUI_DEST -Force'],
+          {
+            env: {
+              ...process.env,
+              OWUI_ZIP: downloadPath,
+              OWUI_DEST: versionDir
+            }
+          }
+        )
       } else {
         execFileSync('unzip', ['-o', downloadPath, '-d', versionDir])
       }
