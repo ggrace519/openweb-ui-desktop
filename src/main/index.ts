@@ -86,6 +86,7 @@ import { initUpdater, checkForUpdates, downloadUpdate, installUpdate } from './u
 import { registerGuestWebviewPolicy } from './guest-webview'
 import { registerCertificatePolicy } from './tls'
 import { isPathInside } from './safe-open'
+import { linuxNeedsNoSandbox } from './linux-sandbox'
 
 import log from 'electron-log'
 log.transports.file.resolvePathFn = () => getLogFilePath('main')
@@ -95,7 +96,12 @@ import icon from '../../resources/icon.png?asset'
 import { existsSync, writeFileSync, unlinkSync } from 'fs'
 
 if (process.platform === 'linux') {
-  app.commandLine.appendSwitch('no-sandbox')
+  // AppImage / snap / Flatpak cannot use Chromium's SUID sandbox. Unpackaged
+  // `electron` (npm run dev) ships chrome-sandbox without the setuid bit.
+  // Native .deb / .rpm keep the renderer sandbox.
+  if (linuxNeedsNoSandbox(process.env, app.isPackaged)) {
+    app.commandLine.appendSwitch('no-sandbox')
+  }
 
   // Work around /dev/shm access failures in AppImage and other containerised
   // environments.  AppImage's FUSE mount can restrict child-process access to
@@ -124,9 +130,8 @@ if (process.platform === 'linux') {
   app.commandLine.appendSwitch('use-gl', 'angle')
   app.commandLine.appendSwitch('use-angle', 'swiftshader')
 
-  // Disable the GPU sandbox — the sandbox setup triggers shared-memory
-  // allocation failures in /dev/shm.  The browser process is already
-  // un-sandboxed (--no-sandbox above).
+  // GPU-process sandbox only. Separate from Chromium's renderer sandbox;
+  // kept on Linux because GPU sandbox setup still trips /dev/shm failures.
   app.commandLine.appendSwitch('disable-gpu-sandbox')
 }
 

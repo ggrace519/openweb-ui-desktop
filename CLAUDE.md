@@ -36,6 +36,8 @@ There is no test script yet. `npm run typecheck` runs `tsc` for the main/preload
 
 Guest Open WebUI (local or remote) talks to the desktop through `content-preload.ts` only. It must never reach `window.electronAPI` on the shell renderer.
 
+On Linux, Chromium `--no-sandbox` is only for AppImage/snap/Flatpak, `ELECTRON_DISABLE_SANDBOX=1`, and unpackaged dev. Native `.deb` / `.rpm` keep the renderer sandbox.
+
 ## Hardening series
 
 See `DECISIONS.md`. Land each fix on its own branch/PR against `develop` so they stay cherry-pickable for upstream.

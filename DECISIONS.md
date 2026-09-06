@@ -115,7 +115,32 @@ Land in this order. Each is its own branch. Later items may stack if they touch 
 | 5 | `fix/hf-path-traversal` | Allowlist HF repo/filename; confine to models dir |
 | 6 | `fix/service-lock-quit` | ADR-0004 |
 
-Follow-ons (not in the first wave): Linux sandbox not globally off, fail CI if codesign fails, drop `@ts-nocheck`, Electron fuses. Electron is pinned to 39.8.10 (`chore/bump-electron`). PR typecheck CI is on `develop`. Python / llama.cpp downloads are checksum-verified (`fix/artifact-checksums`).
+Follow-ons (not in the first wave): fail CI if codesign fails, drop `@ts-nocheck`, Electron fuses. Electron is pinned to 39.8.10 (`chore/bump-electron`). PR typecheck CI is on `develop`. Python / llama.cpp downloads are checksum-verified (`fix/artifact-checksums`). Linux `--no-sandbox` is scoped to AppImage/snap/Flatpak and unpackaged runs (`fix/linux-sandbox-scope`).
+
+---
+
+## ADR-0006: Linux renderer sandbox stays on for native packages
+
+**Date:** 2026-09-05
+**Status:** Proposed
+**Phase:** Hardening
+**Deciders:** Greg
+
+### Context
+
+Every Linux launch appended `--no-sandbox`, so a renderer compromise on a native `.deb` had the same privileges as the browser process. That flag is required inside AppImage (FUSE), snap, and Flatpak, where Chromium's SUID helper cannot be installed.
+
+### Decision
+
+Apply `--no-sandbox` only when `APPIMAGE`, `SNAP`, or `FLATPAK_ID` is set, when `ELECTRON_DISABLE_SANDBOX=1`, or when the app is unpackaged (`npm run dev` — `chrome-sandbox` is not setuid in `node_modules`). Keep `disable-dev-shm-usage` and `disable-gpu-sandbox` on Linux; those address `/dev/shm` crashes, not renderer isolation.
+
+### Rationale
+
+The renderer sandbox is the main process-isolation boundary for `<webview>` guests. Turning it off for every Linux user to support container formats is broader than the constraint.
+
+### Consequences
+
+A native package whose `chrome-sandbox` helper is missing or not setuid will fail to start until the user sets `ELECTRON_DISABLE_SANDBOX=1` or the package is fixed. That is preferable to silently disabling the sandbox for everyone.
 
 ---
 
