@@ -1,6 +1,6 @@
 # Open WebUI Desktop
 
-Electron 39 + Svelte 5 shell around Open WebUI. Local install (bundled CPython/`uv`, SHA-256 pinned), optional llama.cpp (GitHub asset digest verified), optional Open Terminal, remote connections as `<webview>` guests.
+Electron 39 + Svelte 5 shell around Open WebUI. Local install (bundled CPython/`uv`, SHA-256 pinned), optional llama.cpp (GitHub asset digest verified), Hugging Face GGUF weights (Hub LFS SHA-256 verified), optional Open Terminal, remote connections as `<webview>` guests.
 
 This is a fork of [open-webui/desktop](https://github.com/open-webui/desktop). Hardening work lands here first so each change can be offered upstream as its own PR.
 
