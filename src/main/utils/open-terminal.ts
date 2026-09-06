@@ -99,7 +99,7 @@ export const startOpenTerminal = async (
   }
 
   // Find available port
-  let desiredPort = port || 39284
+  const desiredPort = port || 39284
   let availablePort = desiredPort
   while (await portInUse(availablePort, host)) {
     availablePort++

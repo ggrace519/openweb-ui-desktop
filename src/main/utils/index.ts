@@ -554,7 +554,7 @@ import * as pty from 'node-pty'
 
 const serverPIDs: Set<number> = new Set()
 const serverLogs: Map<number, string[]> = new Map()
-let serverPtyProcesses: Map<number, pty.IPty> = new Map()
+const serverPtyProcesses: Map<number, pty.IPty> = new Map()
 
 export const getServerPIDs = (): number[] => Array.from(serverPIDs)
 export const getServerPty = (pid: number): pty.IPty | undefined => serverPtyProcesses.get(pid)
@@ -585,7 +585,7 @@ export const startServer = async (
   }
 
   // Find available port
-  let desiredPort = port || 8080
+  const desiredPort = port || 8080
   let availablePort = desiredPort
   while (await portInUse(availablePort, host)) {
     availablePort++
