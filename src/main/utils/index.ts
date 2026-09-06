@@ -16,6 +16,7 @@ import {
   downloadAndVerifySha256,
   fileMatchesSha256
 } from './artifact-integrity'
+import { sanitizeChildEnv } from './child-env'
 import { execFileSync, exec, spawn, execSync, execFile } from 'child_process'
 
 import log from 'electron-log'
@@ -357,21 +358,21 @@ export const getPythonPath = (installationDir?: string) => {
  * Windows finds the correct DLLs first.  On non-Windows platforms this is a
  * harmless no-op.
  *
- * Any additional env overrides (e.g. `configEnvVars`) can be spread after
- * calling this helper.
+ * `configEnvVars` are merged here; dangerous keys (LD_PRELOAD, NODE_OPTIONS,
+ * PYTHONHOME, …) are stripped by `sanitizeChildEnv`.
  */
-const pythonEnv = (extra: Record<string, string> = {}): Record<string, string> => {
-  const base: Record<string, string> = { ...process.env }
+export const pythonEnv = (extra: Record<string, string> = {}): Record<string, string> => {
+  const env = sanitizeChildEnv(extra)
 
   if (process.platform === 'win32') {
     // python.exe lives at the root of the installation directory on Windows
     const pythonDir = getPythonInstallationDir()
-    const currentPath = process.env['PATH'] || process.env['Path'] || ''
-    base['PATH'] = `${pythonDir};${currentPath}`
-    base['PYTHONIOENCODING'] = 'utf-8'
+    const currentPath = env['PATH'] || env['Path'] || ''
+    env['PATH'] = `${pythonDir};${currentPath}`
+    env['PYTHONIOENCODING'] = 'utf-8'
   }
 
-  return { ...base, ...extra }
+  return env
 }
 
 export const isPythonInstalled = (installationDir?: string) => {

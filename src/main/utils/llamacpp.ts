@@ -16,6 +16,7 @@ import {
   downloadFileWithProgress
 } from './index'
 import { parseGithubDigest, fileMatchesSha256, assertSha256 } from './artifact-integrity'
+import { sanitizeChildEnv, sanitizeLlamaExtraArgs } from './child-env'
 
 import { getModelsDir } from './huggingface'
 import { ServiceLock, isProcessAlive } from './service-lock'
@@ -508,9 +509,18 @@ export const startLlamaCpp = async (
     }
   }
 
-  const extraArgs = llamaConfig.extraArgs ?? []
+  const extraArgs = sanitizeLlamaExtraArgs(llamaConfig.extraArgs)
   const modelsDir = getModelsDir()
-  const commandArgs = ['--host', host, '--port', availablePort.toString(), '--models-dir', modelsDir, ...extraArgs]
+  // Bind address, port, and models dir always win over extraArgs.
+  const commandArgs = [
+    ...extraArgs,
+    '--models-dir',
+    modelsDir,
+    '--host',
+    host,
+    '--port',
+    availablePort.toString()
+  ]
 
   log.info('Starting llama-server:', binary, commandArgs.join(' '))
 
@@ -520,10 +530,7 @@ export const startLlamaCpp = async (
       name: 'xterm-256color',
       cols: 200,
       rows: 50,
-      env: {
-        ...process.env,
-        ...(config.envVars ?? {})
-      }
+      env: sanitizeChildEnv(config.envVars ?? {})
     })
   } catch (error) {
     status = 'failed'

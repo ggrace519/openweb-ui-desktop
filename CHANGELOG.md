@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Child-process environment and llama.cpp extra args are sanitized.** `LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`, `NODE_OPTIONS`, `PYTHONHOME`, and similar keys from the user environment or Settings env vars no longer reach Open WebUI / Open Terminal / llama-server. llama.cpp `--host`, `--port`, and `--models-dir` in extra args are ignored so the server stays on `127.0.0.1` with the app's models directory.
 - **Linux Chromium sandbox is no longer globally off.** `--no-sandbox` is applied only for AppImage, snap, Flatpak, an explicit `ELECTRON_DISABLE_SANDBOX=1`, and unpackaged dev runs (where `chrome-sandbox` is not setuid). Native `.deb` / `.rpm` installs keep the renderer sandbox. `disable-dev-shm-usage` is unchanged.
 - **Python and llama.cpp downloads are checksum-verified.** The bundled CPython tarball is pinned to official python-build-standalone SHA-256 sums; llama.cpp GitHub assets must include a `digest: sha256:…` and are hashed while downloading. A corrupt or swapped cache is discarded and re-fetched instead of extracted.
 - **Child processes are stopped on quit.** `before-quit` was `async` without `preventDefault`, so Electron did not wait for llama.cpp / Open Terminal / Open WebUI to die. Quit now uses `will-quit` and waits. `startLlamaCpp` / `startOpenTerminal` also no longer release `ServiceLock` by calling `stop()` first, which had allowed overlapping starts.

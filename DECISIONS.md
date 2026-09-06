@@ -115,7 +115,32 @@ Land in this order. Each is its own branch. Later items may stack if they touch 
 | 5 | `fix/hf-path-traversal` | Allowlist HF repo/filename; confine to models dir |
 | 6 | `fix/service-lock-quit` | ADR-0004 |
 
-Follow-ons (not in the first wave): drop `@ts-nocheck`. Electron is pinned to 39.8.10 (`chore/bump-electron`). PR typecheck CI is on `develop`. Python / llama.cpp downloads are checksum-verified (`fix/artifact-checksums`). Linux `--no-sandbox` is scoped to AppImage/snap/Flatpak and unpackaged runs (`fix/linux-sandbox-scope`). Electron fuses are set in `electron-builder.yml` (`fix/electron-fuses`). macOS/Windows releases fail closed on signing (`fix/release-codesign-required`).
+Follow-ons (not in the first wave): drop `@ts-nocheck`. Electron is pinned to 39.8.10 (`chore/bump-electron`). PR typecheck CI is on `develop`. Python / llama.cpp downloads are checksum-verified (`fix/artifact-checksums`). Linux `--no-sandbox` is scoped to AppImage/snap/Flatpak and unpackaged runs (`fix/linux-sandbox-scope`). Electron fuses are set in `electron-builder.yml` (`fix/electron-fuses`). macOS/Windows releases fail closed on signing (`fix/release-codesign-required`). Child env / llama extra args are sanitized (`fix/child-env-allowlist`).
+
+---
+
+## ADR-0009: Child env and llama extra args are not attacker-controlled
+
+**Date:** 2026-09-05
+**Status:** Proposed
+**Phase:** Hardening
+**Deciders:** Greg
+
+### Context
+
+Settings lets the user (or anything that can `setConfig`) inject arbitrary `envVars` into Open WebUI, Open Terminal, and llama-server, and arbitrary `llamaCpp.extraArgs`. `LD_PRELOAD` / `DYLD_INSERT_LIBRARIES` / `NODE_OPTIONS` / `PYTHONHOME` become code execution in those children. `extraArgs` of `--host 0.0.0.0` binds llama-server on every interface after the desktop already chose `127.0.0.1`.
+
+### Decision
+
+Strip a blocklist of loader/runtime keys (case-insensitive) from the inherited environment and from `config.envVars` before `pty.spawn`. Strip `--host`, `--port`, and `--models-dir` from extra args and always append the desktop's values last.
+
+### Rationale
+
+The desktop owns bind address and model path. User extra args are for GPU layers and context size, not for rebinding the server. Env injection is a confused-deputy even when the UI form is "advanced settings".
+
+### Consequences
+
+A user who needs `PYTHONHOME` or `LD_PRELOAD` for a custom build cannot set them through the app. `LD_LIBRARY_PATH` is still allowed for CUDA/ROCm. Extra `--host 0.0.0.0` is silently dropped rather than rejected in the UI.
 
 ---
 
