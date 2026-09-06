@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Packaged shell loads over `app://renderer/`, not `file://`.** Main, Spotlight, and voice-input production windows use a confined `protocol.handle`. Dev (`ELECTRON_RENDERER_URL`) is unchanged. Guest webviews stay on `http(s)`.
+
 ### Fixed
 
 - **Open WebUI guest no longer dies on `appData is not defined`.** `app:data` now returns `null` instead of `{}`. Open WebUI calls `appData.set(data)` without importing the store when that payload is truthy, which left a blank webview after login.
