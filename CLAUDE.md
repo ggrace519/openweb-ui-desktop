@@ -50,3 +50,7 @@ Child processes get a sanitized env (no `LD_PRELOAD` / `NODE_OPTIONS` / `PYTHONH
 ## Hardening series
 
 See `DECISIONS.md`. Land each fix on its own branch/PR against `develop` so they stay cherry-pickable for upstream.
+
+## Promotion workflow
+
+`.github/workflows/promote.yml` opens and refreshes the develop → main promotion PR after CI passes on a develop push. It calls the shared `ggrace519/.github` workflow at `@v1`. An open promotion PR is not approval: merging it is still the maintainer's call, as a merge commit, never a squash.
