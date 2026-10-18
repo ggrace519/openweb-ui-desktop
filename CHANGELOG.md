@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Infrastructure
 
+- A `promote` workflow opens the single `develop` → `main` promotion pull request after CI passes on a develop push, and refreshes its commit and file summary on later develop pushes. It uses the shared `ggrace519/.github` workflow.
 - **eslint is a CI gate for `src/main` and preload.** `npm run lint:main` must stay at zero findings. Full-repo `npm run lint` is still not a gate (renderer has hundreds of pre-existing hits).
 - **Main-process security helpers have a `node:test` suite.** `npm test` covers checksums, child-env, linux sandbox gating, HF path confinement, llama.cpp release picking, external-URL allowlisting, and the guest IPC protocol. CI on `develop` runs it after typecheck.
 - **Main-process TypeScript is actually typechecked.** Removed `// @ts-nocheck` from `src/main/` so `npm run typecheck` covers the process manager, not only preload.
