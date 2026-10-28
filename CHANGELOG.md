@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Guest webview IPC allowlist.** Open WebUI pages loaded in a `<webview>` (including remote connections) can no longer invoke the full privileged desktop API. Guest `send()` is limited to `token:update`, `app:info`, `app:data`, and `window:isFocused`, and `will-attach-webview` now forces sandbox / contextIsolation / no Node. The previous `electronAPI[type]` dispatch was both a privilege-escalation path and a protocol mismatch — Open WebUI's real `app:info` / `window:isFocused` calls never reached the right handlers.
 
 ### Infrastructure
+- The promotion workflow now pins the shared `promote` workflow to a commit SHA (v1.0.2) instead of the moving `v1` tag, so upstream changes can't silently alter what runs in this repo's CI.
 
 - A `promote` workflow opens the single `develop` → `main` promotion pull request after CI passes on a develop push, and refreshes its commit and file summary on later develop pushes. It uses the shared `ggrace519/.github` workflow.
 - **eslint is a CI gate for `src/main` and preload.** `npm run lint:main` must stay at zero findings. Full-repo `npm run lint` is still not a gate (renderer has hundreds of pre-existing hits).
