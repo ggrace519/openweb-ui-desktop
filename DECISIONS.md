@@ -115,7 +115,7 @@ Land in this order. Each is its own branch. Later items may stack if they touch 
 | 5 | `fix/hf-path-traversal` | Allowlist HF repo/filename; confine to models dir |
 | 6 | `fix/service-lock-quit` | ADR-0004 |
 
-Follow-ons from the first wave are landed. Electron is pinned to 39.8.10 (`chore/bump-electron`). PR typecheck CI is on `develop`. Python / llama.cpp downloads are checksum-verified (`fix/artifact-checksums`). Linux `--no-sandbox` is scoped to AppImage/snap/Flatpak and unpackaged runs (`fix/linux-sandbox-scope`). Electron fuses are set in `electron-builder.yml` (`fix/electron-fuses`). macOS/Windows releases fail closed on signing (`fix/release-codesign-required`). Child env / llama extra args are sanitized (`fix/child-env-allowlist`). Main-process `@ts-nocheck` is gone (`chore/drop-ts-nocheck`).
+Follow-ons from the first wave are landed. Electron is pinned to 42.11.18 for CVE-2026-111497 (Chromium 148); 39.x is out of support. PR typecheck CI is on `develop`. Python / llama.cpp downloads are checksum-verified (`fix/artifact-checksums`). Linux `--no-sandbox` is scoped to AppImage/snap/Flatpak and unpackaged runs (`fix/linux-sandbox-scope`). Electron fuses are set in `electron-builder.yml` (`fix/electron-fuses`). macOS/Windows releases fail closed on signing (`fix/release-codesign-required`). Child env / llama extra args are sanitized (`fix/child-env-allowlist`). Main-process `@ts-nocheck` is gone (`chore/drop-ts-nocheck`).
 
 ---
 

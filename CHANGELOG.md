@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Electron pinned to 42.11.18 for CVE-2026-111497 (HTTP2Shell).** Out-of-bounds write in the Brotli decoder bundled with Electron 39. That line is out of support and will not be patched. 42.11.18 is the latest 42.x release (Chromium 148.0.7778.280); Electron builds Node against Chromium's Brotli, which includes the fix. Exact pin. Already-shipped installs stay vulnerable until a new packaged build is published.
+
 ### Changed
 
 - **Packaged shell loads over `app://renderer/`, not `file://`.** Main, Spotlight, and voice-input production windows use a confined `protocol.handle`. Dev (`ELECTRON_RENDERER_URL`) is unchanged. Guest webviews stay on `http(s)`.
@@ -31,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Guest webview IPC allowlist.** Open WebUI pages loaded in a `<webview>` (including remote connections) can no longer invoke the full privileged desktop API. Guest `send()` is limited to `token:update`, `app:info`, `app:data`, and `window:isFocused`, and `will-attach-webview` now forces sandbox / contextIsolation / no Node. The previous `electronAPI[type]` dispatch was both a privilege-escalation path and a protocol mismatch — Open WebUI's real `app:info` / `window:isFocused` calls never reached the right handlers.
 
 ### Infrastructure
+- The promotion workflow now pins the shared `promote` workflow to a commit SHA (v1.0.2) instead of the moving `v1` tag, so upstream changes can't silently alter what runs in this repo's CI.
 
 - A `promote` workflow opens the single `develop` → `main` promotion pull request after CI passes on a develop push, and refreshes its commit and file summary on later develop pushes. It uses the shared `ggrace519/.github` workflow.
 - **eslint is a CI gate for `src/main` and preload.** `npm run lint:main` must stay at zero findings. Full-repo `npm run lint` is still not a gate (renderer has hundreds of pre-existing hits).
@@ -38,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Main-process TypeScript is actually typechecked.** Removed `// @ts-nocheck` from `src/main/` so `npm run typecheck` covers the process manager, not only preload.
 - **macOS and Windows releases no longer ship unsigned.** The release workflow fails if Apple codesign/notarization or Azure Trusted Signing fails, instead of publishing an unsigned fallback. Linux packages are unchanged.
 - **Electron fuses flipped at pack time.** Packaged builds disable `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS`, and `--inspect`, validate `app.asar` integrity (macOS/Windows), load app code only from the asar, and do not grant `file:` extra privileges. Native modules still unpack (`node-pty`).
-- **Electron pinned to 39.8.10.** The lockfile was on 39.8.2 and `package.json` allowed `^39.2.6`, both below the GHSA-h7rp-cf8h-j98x / CVE-2026-70601 fix (39.8.9). 39.8.10 is the current 39.x patch line (also includes later Chromium backports). Exact pin so installs cannot slide back.
+- **Electron moved from 39.8.10 to 42.11.18.** See Security. The previous exact pin (39.8.10) covered GHSA-h7rp-cf8h-j98x / CVE-2026-70601 and is superseded by this bump.
 - **PR typecheck and tests on `develop`.** Pull requests and pushes to `develop` run `npm run typecheck` and `npm test`. Full-repo `eslint` is not a gate yet — it currently reports hundreds of pre-existing findings on `develop`.
 
 ## [0.0.20] - 2026-05-07
